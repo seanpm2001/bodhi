@@ -190,6 +190,8 @@ class TestMain(base.BasePyTestCase):
         assert policy.cookie.secure == True
         assert policy.cookie.secret == 'hunter2'
         assert policy.cookie.timeout == 10
+        assert policy.cookie.samesite == "Strict"
+        assert policy.cookie.http_only == False
         set_authentication_policy.assert_called_once_with(policy)
         # Ensure that the ACLAuthorizationPolicy was used
         policy = set_authorization_policy.mock_calls[0][1][0]
@@ -212,6 +214,8 @@ class TestMain(base.BasePyTestCase):
         assert policy.cookie.secure == True
         assert policy.cookie.secret == 'hunter2'
         assert policy.cookie.timeout == 86400
+        assert policy.cookie.samesite == "Strict"
+        assert policy.cookie.http_only == False
         set_authentication_policy.assert_called_once_with(policy)
         # Ensure that the ACLAuthorizationPolicy was used
         policy = set_authorization_policy.mock_calls[0][1][0]
