@@ -16,9 +16,9 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
-import math
-import hashlib
 from urllib.parse import urlencode
+import hashlib
+import math
 import xml.etree.ElementTree as ET
 
 import psycopg2
@@ -137,7 +137,7 @@ def test_get_api_version(bodhi_container):
     # Get bodhi version from source
     ret = bodhi_container.execute(
         "python3 -c \"import pkg_resources; print(pkg_resources."
-        "get_distribution('bodhi').version, end='', flush=True)\""
+        "get_distribution('bodhi-server').version, end='', flush=True)\""
     )
     bodhi_version = ret[0].decode("utf-8")
     try:
@@ -180,7 +180,7 @@ def test_get_notfound_view(bodhi_container):
         assert not http_response.ok
         assert http_response.status_code == 404
         assert "Not Found" in http_response.text
-        assert "The resource could not be found" in http_response.text
+        assert '<p class="lead">/inexisting_path</p>' in http_response.text
     except AssertionError:
         print(http_response)
         print(http_response.text)
@@ -478,7 +478,8 @@ def test_get_users_json(bodhi_container, db_container):
         "  groups.name as group_name "
         "FROM user_group_table "
         "JOIN groups ON user_group_table.group_id = groups.id "
-        "WHERE user_group_table.user_id = %s"
+        "WHERE user_group_table.user_id = %s "
+        "ORDER BY groups.name"
     )
     query_total_users = (
         "SELECT "
@@ -516,8 +517,12 @@ def test_get_users_json(bodhi_container, db_container):
 
     try:
         assert http_response.ok
+        response_users = http_response.json()["users"]
+        for user in response_users:
+            # Sort groups for comparaison
+            user["groups"].sort(key=lambda d: d["name"])
         for user in users:
-            assert user in http_response.json()["users"]
+            assert user in response_users
         assert http_response.json()["page"] == 1
         assert http_response.json()["pages"] == int(math.ceil(total / float(20)))
         assert http_response.json()["rows_per_page"] == 20
@@ -715,17 +720,18 @@ def test_get_packages_json(bodhi_container, db_container):
     with bodhi_container.http_client(port="8080") as c:
         http_response = c.get(f"/packages/?name={packages[0]['name']}")
 
-    expected_json = {
-        "packages": packages,
-        "page": 1,
-        "pages": 1,
-        "rows_per_page": 20,
-        "total": 1,
-    }
-
     try:
         assert http_response.ok
-        assert expected_json == http_response.json()
+        response = http_response.json()
+        assert response['total'] == 1
+        response_packages = response["packages"]
+        # let's compare sorted lists to avoid flakiness
+        # XXX: wait, there's two packages but total==1?
+        # So you return one with type==rpm and one with type==module but still total==1?
+        # WTF Bodhi.
+        packages.sort(key=lambda p: p["type"])
+        response_packages.sort(key=lambda p: p["type"])
+        assert packages == response_packages
     except AssertionError:
         print(http_response)
         print(http_response.text)
@@ -1044,7 +1050,8 @@ def test_get_compose_json(bodhi_container, db_container):
         "  composed_by_bodhi, "
         "  create_automatic_updates, "
         "  package_manager, "
-        "  testing_repository "
+        "  testing_repository, "
+        "  eol "
         "FROM releases "
         "WHERE id = %s "
     )

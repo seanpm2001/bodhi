@@ -1,0 +1,40 @@
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - develop
+      - '5.7'
+    paths:
+      - docs/**
+
+name: Build Docs and push results to gh-pages branch
+
+permissions:
+  contents: write
+
+jobs:
+  docs:
+    name: Build Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          ref: ${{ matrix.branch }}
+
+      - name: Install deps
+        run: pip install click sphinx sqlalchemy_schemadisplay
+
+      - name: Build the docs
+        run: devel/ci/bodhi-ci docs -r ${{ matrix.release }}
+      
+      - name: Deploy
+        uses: JamesIves/github-pages-deploy-action@v4.2.5
+        with:
+          branch: gh-pages
+          folder: test_results/${{ matrix.release }}-docs/html
+          target-folder: ${{ matrix.branch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        release: [pip]
+        branch: ['develop', '5.7']

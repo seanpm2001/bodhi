@@ -21,6 +21,8 @@ import time
 import conu
 import pytest
 
+from .utils import stop_and_delete
+
 
 @pytest.fixture(scope="session")
 def rabbitmq_container(
@@ -39,15 +41,19 @@ def rabbitmq_container(
     # Define the container and start it
     image_name = "bodhi-ci-integration-rabbitmq"
     image = docker_backend.ImageClass(image_name)
-    container = image.run_via_api()
+    run_opts = [
+        "--rm",
+        "--name", "rabbitmq",
+        "--network", docker_network.get_id(),
+        "--network-alias", "rabbitmq",
+        "--network-alias", "rabbitmq.ci",
+    ]
+    container = image.run_via_binary(additional_opts=run_opts)
     container.start()
-    docker_backend.d.connect_container_to_network(
-        container.get_id(), docker_network["Id"], aliases=["rabbitmq", "rabbitmq.ci"]
-    )
     # we need to wait for the broker to start listening
     container.wait_for_port(5672, timeout=30)
     # wait until the embedded consumer is connected
-    for i in range(15):
+    for i in range(60):
         if _consumer_is_connected(container, "dumper"):
             break
         print("Consumer not connected yet, retrying")
@@ -55,8 +61,7 @@ def rabbitmq_container(
     else:
         raise RuntimeError("The Fedora Messaging consumer did not connect in time")
     yield container
-    container.kill()
-    container.delete()
+    stop_and_delete(container)
 
 
 def _consumer_is_connected(container: conu.DockerContainer, queue_name: str) -> bool:

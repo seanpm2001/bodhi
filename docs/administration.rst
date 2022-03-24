@@ -17,7 +17,7 @@ an example ``production.ini`` file that has all settings documented. Most settin
 defaults if not defined, and the example settings file describes the default values in the
 commented settings. Here is a copy of the example config file with in-line documentation:
 
-.. include:: ../production.ini
+.. include:: ../bodhi-server/production.ini
    :literal:
 
 
@@ -84,11 +84,6 @@ You can read more detail about the ```RateLimiter``` below:
 
 Components
 ==========
-
-CLI tools
----------
-
-See the :doc:`user/man_pages/index` documentation for a list of CLI tools that come with Bodhi.
 
 
 Web Server

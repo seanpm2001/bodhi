@@ -21,10 +21,12 @@
       - openssl-devel
       - pcaro-hermit-fonts
       - pcp-system-tools
+      - pre-commit
       - postgresql-devel
       - postgresql-server
       - python3-alembic
       - python3-arrow
+      - python3-authlib
       - python3-backoff
       - python3-bleach
       - python3-celery
@@ -32,11 +34,9 @@
       - python3-colander
       - python3-conu
       - python3-cornice
-      - python3-cornice-sphinx
       - python3-createrepo_c
       - python3-diff-cover
       - python3-dogpile-cache
-      - python3-fedora
       - python3-flake8
       - python3-flake8-import-order
       - python3-ipdb
@@ -45,6 +45,7 @@
       - python3-markdown
       - python3-munch
       - python3-openid
+      - python3-prometheus_client
       - python3-psycopg2
       - python3-pydocstyle
       - python3-pylibravatar
@@ -52,12 +53,15 @@
       - python3-pyramid-fas-openid
       - python3-pytest
       - python3-pytest-cov
+      - python3-pytest-mock
       - python3-responses
       - python3-rpdb
       - python3-simplemediawiki
+      - python3-sphinx
       - python3-sqlalchemy
       - python3-sqlalchemy_schemadisplay
       - python3-webtest
+      - python3-whitenoise
       - redhat-rpm-config
       - screen
       - skopeo
@@ -65,14 +69,11 @@
       - tree
       - vim-enhanced
       - zlib-devel
+      # Auth
+      - httpd
+      - mod_ssl
+      - ipa-client
     state: present
-
-
-- name: Configure Cgroups v1 for docker in grub.cfg
-  command: sed -i '/^GRUB_CMDLINE_LINUX/ s/"$/ systemd.unified_cgroup_hierarchy=0"/' /etc/default/grub
-
-- name: Generate the new grub configuration with cgroups v1
-  command: grub2-mkconfig -o /boot/grub2/grub.cfg
 
 - name: Initialize PostgreSQL
   command: postgresql-setup initdb
@@ -127,10 +128,14 @@
   register: python3_version
 
 - name: Install bodhi in developer mode for Python 3
-  command: python3 /home/vagrant/bodhi/setup.py develop
+  command: python3 setup.py develop
   args:
-      chdir: /home/vagrant/bodhi
-      creates: /usr/lib/python{{ python3_version.stdout }}/site-packages/bodhi.egg-link
+      chdir: /home/vagrant/bodhi/{{ item }}
+      creates: /usr/lib/python{{ python3_version.stdout }}/site-packages/{{ item }}.egg-link
+  loop:
+    - bodhi-messages
+    - bodhi-client
+    - bodhi-server
 
 - name: Retrieve database dump
   get_url:
@@ -142,9 +147,9 @@
   args:
       creates: /home/vagrant/.db-imported
 
-- command: cp /home/vagrant/bodhi/devel/development.ini.example /home/vagrant/bodhi/development.ini
+- command: cp /home/vagrant/bodhi/devel/development.ini.example /home/vagrant/development.ini
   args:
-      creates: /home/vagrant/bodhi/development.ini
+      creates: /home/vagrant/development.ini
 
 - name: Change development.ini to make bodhi use the staging infrastructure
   import_tasks: configure_stg.yml
@@ -155,24 +160,10 @@
     path: /etc/bodhi
     state: directory
 
-- name: Copy celery configuration to correct path
-  copy:
-    src: celeryconfig.py
-    dest: /etc/bodhi/celeryconfig.py
-    owner: root
-    group: root
-    mode: 644
-
-# Bug in zope.interface filled here https://github.com/zopefoundation/zope.interface/issues/114
-- name: Fix namespace-package bug in zope.interface
-  copy:
-      content: "__import__('pkg_resources').declare_namespace(__name__)"
-      dest: "/usr/lib64/python{{ python3_version.stdout }}/site-packages/zope/__init__.py"
-
 - name: Apply database migrations
   shell: PYTHONPATH=. alembic upgrade head
   args:
-      chdir: /home/vagrant/bodhi
+      chdir: /home/vagrant/bodhi/bodhi-server
 
 - name: Install the systemd unit files
   copy:
@@ -228,10 +219,91 @@
       group: root
       mode: 644
 
+- name: Link the bodhi bash completion script
+  file:
+    src: /home/vagrant/bodhi/bodhi-client/bodhi-complete.sh
+    dest: /etc/bash_completion.d/bodhi-complete.sh
+    state: link
+
+# Auth
+
+- name: Enroll system as IPA client
+  shell:
+    cmd: ipa-client-install --hostname {{ ansible_fqdn }} --domain tinystage.test --realm {{ krb_realm }} --server ipa.tinystage.test -p {{ ipa_admin_user }} -w {{ ipa_admin_password }} -U -N --force-join
+    creates: /etc/ipa/default.conf
+
+- name: pip install oidc-register
+  pip:
+      name: oidc-register
+      executable: pip3
+
+- name: Get the content of the CA cert
+  slurp:
+    src: /etc/ipa/ca.crt
+  register: ca_crt
+
+- name: Put tinystage root CA in the list of CA's
+  blockinfile:
+    block: "{{ ca_crt.content | b64decode }}"
+    path: /etc/pki/tls/certs/ca-bundle.crt
+
+- name: Put the root CA in the list of CA's for httplib2
+  blockinfile:
+    block: "{{ ca_crt.content | b64decode }}"
+    path: /usr/local/lib/python{{ python3_version.stdout }}/site-packages/httplib2/cacerts.txt
+
+- name: Register with Ipsilon
+  command: python3 /home/vagrant/bodhi/devel/register-with-ipsilon.py
+  register: _ipsilon_registration
+
+- name: Generate and get SSL cert
+  shell:
+    cmd: ipa-getcert request -f /etc/pki/tls/certs/server.pem -k /etc/pki/tls/private/server.key -K HTTP/{{ ansible_fqdn }} -N {{ ansible_fqdn }}
+    creates: /etc/pki/tls/certs/server.pem
+
+- name: Check the cert is there
+  wait_for:
+    path: /etc/pki/tls/certs/server.pem
+    state: present
+
+- name: Check the key is there
+  wait_for:
+    path: /etc/pki/tls/private/server.key
+    state: present
+
+- name: Setup mod_ssl
+  lineinfile:
+    path: /etc/httpd/conf.d/ssl.conf
+    regexp: "^SSLCertificateFile "
+    line: SSLCertificateFile /etc/pki/tls/certs/server.pem
+- name: Setup mod_ssl
+  lineinfile:
+    path: /etc/httpd/conf.d/ssl.conf
+    regexp: "^SSLCertificateKeyFile "
+    line: SSLCertificateKeyFile /etc/pki/tls/private/server.key
+- name: Setup mod_ssl
+  lineinfile:
+    path: /etc/httpd/conf.d/ssl.conf
+    insertbefore: "</VirtualHost>"
+    regexp: "^RequestHeader set X-Forwarded-Proto https$"
+    line: RequestHeader set X-Forwarded-Proto https
+
+- name: Setup httpd
+  copy:
+    src: bodhi.httpd.conf
+    dest: /etc/httpd/conf.d/bodhi.conf
+
+- name: Allow apache to reverse proxy
+  seboolean:
+    name: httpd_can_network_connect
+    state: yes
+    persistent: yes
+
+
 - name: Start and enable the bodhi-related services
   service:
       name: "{{ item }}"
-      state: started
+      state: restarted
       enabled: yes
   with_items:
       - bodhi
@@ -240,11 +312,8 @@
       - fm-consumer@config
       - print-messages
 
-- name: Link the bodhi bash completion script
-  file:
-    src: /home/vagrant/bodhi/bodhi-complete.sh
-    dest: /etc/bash_completion.d/bodhi-complete.sh
-    state: link
-
-- name: Reboot the vagrant box
-  reboot:
+- name: Start enable httpd
+  service:
+      name: httpd
+      state: restarted
+      enabled: yes

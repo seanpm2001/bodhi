@@ -21,40 +21,12 @@ import json
 import re
 import textwrap
 
-from conu import ConuException
 from munch import Munch
-import requests
 import psycopg2
 import pytest
+import requests
 
-from .utils import replace_file, read_file
-
-
-def _run_cli(bodhi_container, args, **kwargs):
-    """Run the Bodhi CLI in the Bodhi container
-
-    Args:
-        bodhi_container (conu.DockerContainer): The Bodhi container to use.
-        args (list): The CLI arguments
-        kwargs (dict): The kwargs to use for the ``DockerContainer.execute()``
-            method.
-    Returns:
-        Munch: Execution result as an object with an ``exit_code`` property
-            (``int``) and an ``output`` property (``str``).
-    """
-    if "exec_create_kwargs" not in kwargs:
-        kwargs["exec_create_kwargs"] = {}
-    if "environment" not in kwargs["exec_create_kwargs"]:
-        kwargs["exec_create_kwargs"]["environment"] = {}
-    kwargs["exec_create_kwargs"]["environment"]["PYTHONWARNINGS"] = "ignore"
-    try:
-        output = bodhi_container.execute(
-            ["bodhi"] + args + ["--url", "http://localhost:8080"],
-            **kwargs
-        )
-    except ConuException as e:
-        return Munch(exit_code=1, output=str(e))
-    return Munch(exit_code=0, output="".join(line.decode("utf-8") for line in output))
+from .utils import read_file, replace_file, run_cli
 
 
 def _db_record_to_munch(cursor, record):
@@ -128,7 +100,7 @@ def test_composes_info(bodhi_container, db_container):
                     update['builds'].append({'nvr': row[0], 'content_type': row[1]})
     conn.close()
 
-    result = _run_cli(bodhi_container, ["composes", "info", compose['release'], compose['request']])
+    result = run_cli(bodhi_container, ["composes", "info", compose['release'], compose['request']])
     assert result.exit_code == 0
 
     security = ' '
@@ -174,7 +146,7 @@ Content Type: {content_type}
 
 def test_composes_list(bodhi_container, db_container):
     """Test ``bodhi composes list``"""
-    result = _run_cli(bodhi_container, ["composes", "list"])
+    result = run_cli(bodhi_container, ["composes", "list"])
     assert result.exit_code == 0
     # Parse command output
     updates_by_compose = {}
@@ -220,7 +192,7 @@ def test_releases_info(bodhi_container, db_container):
     conn.close()
     for release in releases:
         # Run the command for each release
-        result = _run_cli(bodhi_container, ["releases", "info", release["name"]])
+        result = run_cli(bodhi_container, ["releases", "info", release["name"]])
         assert result.exit_code == 0
         expected = """Release:
   Name:                     {name}
@@ -242,6 +214,7 @@ def test_releases_info(bodhi_container, db_container):
   Create Automatic Updates: {create_automatic_updates}
   Package Manager:          {package_manager}
   Testing Repository:       {testing_repository}
+  End of Life:              {eol}
 """.format(**release)
         assert result.output == expected
 
@@ -277,7 +250,7 @@ def test_releases_list(bodhi_container, db_container):
 
     # Run the command
     # To fetch all existing releases in one call, we have to add --rows option
-    result = _run_cli(bodhi_container, ["releases", "list", "--display-archived", "--rows", "100"])
+    result = run_cli(bodhi_container, ["releases", "list", "--display-archived", "--rows", "100"])
     assert result.exit_code == 0
     if len(pending_releases):
         expected_pending_output = "pending:"
@@ -313,7 +286,7 @@ def test_overrides_query(bodhi_container, db_container):
             total = curs.fetchone()[0]
     conn.close()
     # Run the command
-    result = _run_cli(bodhi_container, ["overrides", "query"])
+    result = run_cli(bodhi_container, ["overrides", "query"])
     assert result.exit_code == 0
     last_line = result.output.split("\n")[-2]
     assert last_line == "{} overrides found ({} shown)".format(total, min(total, 20))
@@ -331,7 +304,7 @@ def test_updates_query_total(bodhi_container, db_container):
             total = curs.fetchone()[0]
     conn.close()
     # Run the command
-    result = _run_cli(bodhi_container, ["updates", "query"])
+    result = run_cli(bodhi_container, ["updates", "query"])
     assert result.exit_code == 0
     last_line = result.output.split("\n")[-2]
     assert last_line == "{} updates found ({} shown)".format(total, min(total, 20))
@@ -350,6 +323,7 @@ def test_updates_query_details(bodhi_container, db_container, greenwave_containe
         "JOIN users ON updates.user_id = users.id "
         "JOIN releases ON updates.release_id = releases.id "
         "WHERE releases.state = 'current' "
+        "AND updates.critpath = FALSE "  # Greenwave results are more complex for critpath
         "ORDER BY date_submitted DESC LIMIT 1"
     )
     query_comments = (
@@ -388,7 +362,7 @@ def test_updates_query_details(bodhi_container, db_container, greenwave_containe
             update.builds = [r[0] for r in curs]
     conn.close()
     # Run the command
-    result = _run_cli(bodhi_container, ["updates", "query", "--updateid", update.alias])
+    result = run_cli(bodhi_container, ["updates", "query", "--updateid", update.alias])
     assert result.exit_code == 0
     assert "Update ID: {}".format(update.alias) in result.output
     assert "Content Type: {}".format(update.content_type) in result.output
@@ -449,6 +423,7 @@ def test_updates_query_details(bodhi_container, db_container, greenwave_containe
             "verbose": True,
         }),
     ).json()
+    print("greenwave result:", greenwave_result)
     assert "summary" in greenwave_result
     assert "CI Status: {}".format(greenwave_result["summary"]) in result.output
 
@@ -478,12 +453,15 @@ def test_updates_download(bodhi_container, db_container):
     # something we can track.
     koji_mock = "#!/bin/sh\necho TESTING CALL $0 $@\n"
     with replace_file(bodhi_container, "/usr/bin/koji", koji_mock):
-        result = _run_cli(bodhi_container, cmd)
+        result = run_cli(bodhi_container, cmd)
     assert result.exit_code == 0
     for update in updates:
         assert "Downloading packages from {}".format(update['alias']) in result.output
     for build_id in builds:
-        assert re.search(f"TESTING CALL /usr/bin/koji download-build.*{build_id}", result.output)
+        assert re.search(
+            f"TESTING CALL .*koji download-build.*{re.escape(build_id)}",
+            result.output
+        )
 
 
 def test_updates_request(bodhi_container, ipsilon_container, db_container):
@@ -523,26 +501,11 @@ def test_updates_request(bodhi_container, ipsilon_container, db_container):
         return update_alias
 
     update_alias = find_update()
-    cmd = [
-        "bodhi",
-        "updates",
-        "request",
-        "--url",
-        "http://localhost:8080",
-        "--openid-api",
-        "http://id.dev.fedoraproject.org/api/v1/",
-        "--user",
-        "guest",
-        "--password",
-        "ipsilon",
-        update_alias,
-        "stable",
-    ]
-    try:
-        output = bodhi_container.execute(cmd)
-    except ConuException as e:
+    result = run_cli(
+        bodhi_container, ["updates", "request", update_alias, "stable"]
+    )
+    if result.exit_code != 0:
         with read_file(bodhi_container, "/httpdir/errorlog") as log:
             print(log.read())
-        assert False, str(e)
-    output = "".join(line.decode("utf-8") for line in output)
-    assert "This update has been submitted for stable by guest." in output
+        assert False, result.output
+    assert "This update has been submitted for stable by guest." in result.output

@@ -1,4 +1,4 @@
-FROM fedora:31
+FROM registry.fedoraproject.org/fedora:34
 LABEL maintainer="Randy Barlow <bowlofeggs@fedoraproject.org>"
 
 RUN dnf install -y \
@@ -18,24 +18,19 @@ RUN dnf install -y \
     python3-simplemediawiki \
     redhat-rpm-config \
     python3-libcomps \
-    python3-pip
+    python3-gssapi \
+    python3-pip \
+    python3-wheel \
+    python3-whitenoise \
+    python3-prometheus_client \
+    pre-commit
 
-COPY requirements.txt /bodhi/requirements.txt
-
-RUN pip-3 install -r /bodhi/requirements.txt
 RUN pip-3 install \
-    alembic \
-    cornice_sphinx \
-    diff-cover \
-    flake8 \
-    flake8-import-order \
-    responses \
-    "pydocstyle<4.0" \
-    pytest \
-    pytest-cov \
-    "sphinx<2.1" \
-    sqlalchemy_schemadisplay \
-    webtest
+    pyasn1 \
+    celery
+
+# Force authlib 1.0rc1 even if it's a RC
+RUN pip-3 install authlib==1.0rc1
 
 # Fake pungi being installed so we can avoid it and all its dependencies
 RUN ln -s /usr/bin/true /usr/bin/pungi-koji
@@ -43,9 +38,14 @@ VOLUME ["/results"]
 WORKDIR /bodhi
 CMD ["bash"]
 COPY . /bodhi
-RUN sed -i '/pyramid_debugtoolbar/d' setup.py
-RUN sed -i '/pyramid_debugtoolbar/d' devel/development.ini.example
-# The Makefile is set to use sphinx-build-3, but the pip installed sphinx is just called
-# sphinx-build.
-RUN sed -i 's/sphinx-build-3/sphinx-build/' docs/Makefile
-RUN cp devel/development.ini.example development.ini
+RUN pip-3 install \
+    -r bodhi-messages/test-requirements.txt \
+    -r bodhi-client/test-requirements.txt \
+    -r bodhi-server/test-requirements.txt \
+    -r devel/ci/integration/requirements.txt \
+    -r docs/requirements.txt
+RUN cp devel/development.ini.example bodhi-server/development.ini
+RUN sed -i '/pyramid_debugtoolbar/d' bodhi-server/development.ini
+RUN for pkg in bodhi-client bodhi-messages bodhi-server; do \
+    cd $pkg ; pip3 install . || exit $? ; cd -; \
+    done

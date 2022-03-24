@@ -37,9 +37,9 @@ end
 VAGRANTFILE_API_VERSION = "2"
 
 Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
- config.vm.box_url = "https://download.fedoraproject.org/pub/fedora/linux/releases/32/Cloud/x86_64/images/Fedora-Cloud-Base-Vagrant-32-1.6.x86_64.vagrant-libvirt.box"
- config.vm.box = "f32-cloud-libvirt"
- config.vm.box_download_checksum = "4b13243d39760e59f98078c440d119ccf2699f82128b89daefac02dc99446360"
+ config.vm.box_url = "https://download.fedoraproject.org/pub/fedora/linux/releases/34/Cloud/x86_64/images/Fedora-Cloud-Base-Vagrant-34-1.2.x86_64.vagrant-libvirt.box"
+ config.vm.box = "f34-cloud-libvirt"
+ config.vm.box_download_checksum = "3d9c00892253c869bffcf2e84ddd308e90d5c7a5928b3bc00e0563a4bec55849"
  config.vm.box_download_checksum_type = "sha256"
 
  # Forward traffic on the host to the development server on the guest.
@@ -57,13 +57,12 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
  # This allows developers to view message queues at http://localhost:15672/
  config.vm.network "forwarded_port", guest: 15672, host: 15672
 
- # This is an optional plugin that, if installed, updates the host's /etc/hosts
+ # This is a plugin that updates the host's /etc/hosts
  # file with the hostname of the guest VM. In Fedora it is packaged as
  # ``vagrant-hostmanager``
- if Vagrant.has_plugin?("vagrant-hostmanager")
-     config.hostmanager.enabled = true
-     config.hostmanager.manage_host = true
- end
+ config.hostmanager.enabled = true
+ config.hostmanager.manage_host = true
+ 
 
  # Vagrant can share the source directory using rsync, NFS, or SSHFS (with the vagrant-sshfs
  # plugin). Consult the Vagrant documentation if you do not want to use SSHFS.
@@ -112,7 +111,8 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
         # fsync() calls from the guest. Only do this if you are comfortable with the possibility of
         # your development guest becoming corrupted (in which case you should only need to do a
         # vagrant destroy and vagrant up to get a new one).
-        domain.volume_cache = "unsafe"
+        #domain.volume_cache = "unsafe"
+        domain.disk_driver :cache => 'unsafe'
     end
  end
 end

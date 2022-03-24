@@ -1,0 +1,132 @@
+<%inherit file="master.html"/>
+<div class="subheader">
+<div class="container pt-2">
+<div class="row" style="margin-top: 10px;">
+  <div class="col-md-12">
+    <div class="float-left">
+      % if request.user and user['name'] == request.user.name:
+        <a href="https://www.libravatar.org/openid/login/?openid_identifier=${request.user.openid}">
+          <img class="img-thumbnail" src="${self.util.avatar(user['name'], size=128)}" width="128px" height="128px" alt="User Icon"/>
+        </a>
+      % else:
+        <img class="img-thumbnail" src="${self.util.avatar(user['name'], size=128)}" alt="User Icon"/>
+      % endif
+    </div>
+    <div class="float-left" style="margin-left: 15px">
+      <h1 class="nomargin nopadding">${user['name']}</h1>
+      <h3 id="lastactive" class="spinner nomargin nopadding" style="color: #666;"></h3>
+    </div>
+  </div>
+</div>
+</div>
+</div>
+
+<div class="container pt-4">
+
+<div class="row pt-3">
+  <div class="col-md-12 onlyjs">
+    <div>
+      <h5 class="font-weight-bold d-flex align-items-center">${user['name']}'s latest updates
+        <span class="ml-auto">
+              <a href="${urls['recent_updates']}">
+                All Updates
+              </a>
+            </span>
+      </h5>
+    </div>
+    <div id="recent_updates"><div class="list-group"><div class="list-group-item text-center bg-light p-4"><i class="fa fa-spin text-muted fa-spinner fa-2x"></i></div></div></div>
+  </div>
+</div>
+
+<div class="row pt-4">
+  <div class="col-md-12">
+      <h5 class="font-weight-bold d-flex align-items-center">${user['name']}'s latest buildroot overrides
+          <span class="ml-auto">
+                <a href="${urls['recent_overrides']}">
+                  All Overrides
+                </a>
+              </span>
+        </h5>
+        <div id="recent_overrides"><div class="list-group"><div class="list-group-item text-center bg-light p-4"><i class="fa fa-spin text-muted fa-spinner fa-2x"></i></div></div></div>
+      </div>
+</div>
+
+
+<div class="row pt-4">
+
+  <div class="col-12">
+    <h5 class="font-weight-bold d-flex align-items-center">${user['name']}'s latest comments & feedback
+        <span class="ml-auto">
+              <a href="${urls['comments_by']}">
+                All Comments
+              </a>
+            </span>
+      </h5>
+      <div id="comments_by"><div class="list-group"><div class="list-group-item text-center bg-light p-4"><i class="fa fa-spin text-muted fa-spinner fa-2x"></i></div></div></div>
+    </div>
+  </div>
+</div>
+</div>
+
+<%block name="javascript">
+${parent.javascript()}
+<script>
+    $(function() {
+        $('.onlyjs').css('visibility', 'visible');
+        $('.onlyjs').css('display', 'block');
+  
+        $('.hidejs').css('visibility', 'hidden');
+        $('.hidejs').css('display', 'none');
+        $(".spinner").html('<i class="fa fa-spinner fa-spin fa-fw"></i>');
+        $.ajax(
+            'https://apps.fedoraproject.org/datagrepper/raw/?meta=date&user=${user['name']}&category=bodhi&order=desc&rows_per_page=1&delta=2592000',
+            {
+                dataType: 'jsonp',
+                success: function(e) {
+                    if (e.raw_messages.length > 0) {
+                        var date = e.raw_messages[0].meta.date;
+                        $('#lastactive').text('Last bodhi-related activity: ' + date);
+                    }
+                    else {
+                        $('#lastactive').text('No bodhi-related activity within the last month');
+                    }
+                },
+                error: function(e) {
+                  $('#lastactive').text('Failed to query for activity status...')
+                },
+                timeout: 5000,
+            });
+        $.ajax(
+            "${urls['recent_updates']}" + "&chrome=False&rows_per_page=12&display_user=False",
+            {
+                dataType: 'html',
+                success: function(html) {
+                    $('#recent_updates').parent().append(html);
+                    $('#recent_updates').remove();
+                },
+  
+            });
+        $.ajax(
+            "${urls['recent_overrides']}" + "&chrome=False&rows_per_page=6&display_user=False",
+            {
+                dataType: 'html',
+                success: function(html) {
+                    $('#recent_overrides').parent().append(html);
+                    $('#recent_overrides').remove();
+                },
+  
+            });
+  
+        $.ajax(
+            "${urls['comments_by']}" + "&chrome=False&rows_per_page=10",
+            {
+                dataType: 'html',
+                success: function(html) {
+                    $('#comments_by').parent().append(html);
+                    $('#comments_by').next('ul').addClass('linkable');
+                    $('#comments_by').remove();
+                },
+            });
+    });
+  </script>
+</%block>

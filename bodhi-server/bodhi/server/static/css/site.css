@@ -1,0 +1,346 @@
+p, .lead {
+    margin-bottom: 0px;
+}
+
+a {
+    outline: 0 !important;
+}
+
+a:hover {
+    text-decoration: none;
+}
+
+.centered {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+    text-align: center;
+}
+
+.messenger-message-inner a {
+    color: white;
+    text-decoration: none;
+}
+
+.messenger-message-inner {
+    -webkit-user-select: text;  /* Chrome all / Safari all */
+    -moz-user-select: text;     /* Firefox all */
+    -ms-user-select: text;      /* IE 10+ */
+    user-select: text;          /* Likely future */
+}
+
+.row {
+    margin-right: 0px;
+}
+
+ul {
+    list-style: none;
+}
+
+.table colgroup.strip {
+    width: 10px !important;
+}
+
+hr {
+    margin-top: 5px;
+    margin-bottom: 5px;
+}
+.nowrap {
+    white-space: nowrap;
+}
+.anchor {
+    color: black;
+}
+.linkable li .anchor {
+    display: none;
+}
+.linkable li:hover .anchor {
+    display: inline;
+}
+
+/* Search-y stuff */
+.typeahead__result {
+    font-size: .9rem;
+}
+
+#bodhi-searchbar .typeahead__list {
+    width: 70vw;
+    right: 0;
+    left: unset;
+    max-width: 1140px;
+}
+
+#bodhi-searchbar .typeahead__group {
+    border: none;
+}
+
+#bodhi-searchbar .typeahead__group > a {
+    background: none;
+    padding: 0 .5rem;
+}
+
+#bodhi-searchbar .typeahead__group > a > h3 {
+    margin-top: .75rem;
+    margin-bottom: 0;
+    text-transform: capitalize;
+}
+
+#bodhi-searchbar .typeahead__item {
+    border: none;
+}
+
+#bodhi-searchbar .typeahead__item > a {
+    padding: .5rem .75rem 0 1.5rem
+}
+
+form#search, form#search input, .twitter-typeahead {
+    width: 100%;
+}
+
+ul.updateslist {
+    list-style: none;
+}
+
+ul.updateslist li {
+    width: 100%;
+    border-top: 1px solid #ccc;
+    padding: 6px 30px;
+    position: relative
+}
+
+.onlyjs {
+    display: none;
+    visibility: hidden;
+}
+
+.nopadding {
+    padding: 0;
+}
+
+.nomargin {
+    margin: 0;
+}
+
+.karma-fest {
+    clear: both;
+    font-size: 0.9em;
+    margin-left: 27px; /* avatar + 2px pad */
+}
+
+#preview {
+    padding: 10px;
+}
+
+.markdown ul {
+    list-style-type: circle;
+}
+.markdown > p > code {
+    white-space: normal !important;
+}
+.markdown p {
+    word-wrap:      break-word; /* old-school */
+    overflow-wrap:  break-word; /* new-school */
+    padding:        5px;
+}
+
+.markdown img {
+    max-width: 100%;
+}
+
+#markdown-help strong {
+    text-transform: uppercase;
+}
+#markdown-help hr {
+    margin-top: 12px;
+    padding-bottom: 5px;
+}
+
+.error-page-panel {
+    margin-top: 100px;
+    padding: 20px 40px 40px 40px;
+    border: 1px solid;
+}
+
+.stretch-table-column {
+    min-width: 99%;
+}
+
+.nowrap {
+    white-space: nowrap;
+}
+.subheader{
+  background: #f3f3f3;
+  border-bottom: 1px solid #DDD;
+}
+
+.comment-preview{
+  background: #eee;
+  border: 1px solid #ddd;
+  min-height:13em;
+}
+
+.nav.nav-tabs{
+  margin-bottom: -1px;
+}
+
+.hidden {
+  display: none !important;
+  visibility: hidden !important;
+}
+
+.compose {
+  border:1px solid #ddd;
+  padding:1em;
+  text-align: left!important;
+  background-color: #f7f7f7;
+}
+
+.compose-box{
+  padding:1em;
+  background-color: #ffffff;
+}
+
+.front-release{
+  border-bottom: 1px solid #eee;
+  padding-top: 1.5em;
+padding-bottom: 2em;
+}
+
+.notblue{
+  color:inherit;
+}
+
+.badge-warning, .btn-warning{
+    background-color: #f0ad4e !important;
+    color: white!important;
+}
+
+.font-size-09{
+    font-size: 0.9em!important
+}
+
+.min-width-1{
+    min-width: 1em;
+}
+.min-width-2{
+    min-width: 2em;
+}
+.min-width-3{
+    min-width: 3em;
+}
+
+.min-width-35{
+    min-width: 3.5em;
+}
+
+.line-height-1{
+    line-height: 1em;
+}
+
+.card.user-comment{
+    border-color: #ddd!important;
+    box-shadow: 0 0 5px 0px #eee;
+}
+
+.custom-select{
+    -webkit-appearance: none;
+}
+
+/*CSS rules for the builds adder on the add/edit update form*/
+
+#builds-card .selectize-input,
+#bugs-card .selectize-input{
+
+    border:none;
+    padding: 0;
+}
+
+#bugs-card .selectize-input{
+
+    border-bottom:1px solid #ddd;;
+}
+
+#builds-card .selectize-input.focus,
+#bugs-card .selectize-input.focus{
+    box-shadow:none;
+}
+
+#builds-card .selectize-input #builds-search-selectized,
+#bugs-card .selectize-input #bugs-search-selectized{
+    width:100%!important;
+    border-radius: 0.25rem !important;
+    min-height:34px!important;
+    position: relative!important;
+    left:0!important;
+    opacity:100!important;
+    text-indent: 3em!important;
+}
+
+#builds-card .selectize-input:before,
+#bugs-card .selectize-input:before{
+    /*show the magnifying glass to the left of the builds search*/
+    content: "\f002"!important;
+    position: absolute;
+    bottom:0;
+    height:24px!important;
+    display:block!important;
+    font: normal normal normal 14px/1 FontAwesome;
+    font-size: inherit;
+    text-rendering: auto;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    color: #ccc;
+    left: 15px;
+}
+
+#builds-card .loading .selectize-input:after,
+#bugs-card .loading .selectize-input:after{
+    /*show the loading animation on the builds chooser*/
+    content: "\f1ce"!important;
+    position: absolute;
+    bottom:4px;
+    display:block!important;
+    font: normal normal normal 14px/1 FontAwesome;
+    font-size: inherit;
+    text-rendering: auto;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    color: #aaa;
+    right: 10px;
+    font-size:1.5em;
+    -webkit-animation: fa-spin 2s infinite linear;
+    animation: fa-spin 2s infinite linear;
+}
+
+#builds-card .selectize-control.multi .selectize-input > div,
+#bugs-card .selectize-control.multi .selectize-input > div
+{
+    background-color: white;
+}
+
+#builds-card .selectize-control.multi .selectize-input > div.active,
+#bugs-card .selectize-control.multi .selectize-input > div.active
+{
+    background-color: #428bca;
+}
+
+#builds-card  .selectize-control.plugin-remove_button [data-value] .remove,
+#bugs-card  .selectize-control.plugin-remove_button [data-value] .remove{
+    font-size:16px;
+    padding-top:4px;
+}
+
+.masthead{
+    border-bottom: 1px solid #ccc;
+    box-shadow: 0 0 10px 2px #ddd;
+    position: relative;
+}
+
+.bodycontent {
+    min-height: 65vh;
+    z-index: 1;
+}
+
+.caption-top {
+    caption-side: top;
+}

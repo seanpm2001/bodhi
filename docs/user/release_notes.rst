@@ -4,6 +4,384 @@ Release notes
 
 .. towncrier release notes start
 
+v5.7.5
+======
+This is a feature release.
+
+Features
+^^^^^^^^
+
+* Prepare the Bodhi client to be compatible with an OIDC-enabled server.
+  (:pr:`4391`).
+
+Contributors
+^^^^^^^^^^^^
+
+The following developers contributed to this release of Bodhi:
+
+* Aurélien Bompard
+
+
+v5.7.4
+======
+This is a bugfix release that should help with several more problems after 7.5.3 release.
+
+
+Features
+^^^^^^^^
+
+* Automatic updates consumer can now identify new packages and mark updates
+  with the appropriate type (:pr:`4324`).
+* Detect stuck updates with builds that were never been sent to pending-signing
+  and unstuck them (:issue:`4307`).
+
+Bug fixes
+^^^^^^^^^
+
+* Bodhi will now retry to get a build changelog if Koji returns empty rpm
+  headers. See also https://pagure.io/koji/issue/3178 (:issue:`4316`).
+* Fixed an issue about some bug title never fetched from Bugzilla
+  (:issue:`4317`).
+
+Contributors
+^^^^^^^^^^^^
+
+The following developers contributed to this release of Bodhi:
+
+* Adam Saleh
+* Aurélien Bompard
+* Adam Williamson
+* Lenka Segura
+* Mattia Verga
+
+
+v5.7.3
+======
+This is a bugfix release that should help with several more problems after 7.5.2 release.
+
+
+Bug fixes
+^^^^^^^^^
+
+* Fixed an issue where Bodhi was throwing 5xx "NoSuchColumnError testcases.id" errors because of a misconfigured table (:issue:`4302`).
+
+v5.7.2
+======
+This is a bugfix release that should help with several problems after 7.5.1 release.
+
+
+Bug fixes
+^^^^^^^^^
+
+* Fixed an issue where JSON serialization of a TestCase object hangs the server
+  (:pr:`4278`).
+* Fixed a possible call to Koji listTagged() passing an empty tag name
+  (:pr:`4280`).
+* Bodhi will now try to resubmit a build to signing if it detects that is stuck
+  in pending signing for some time (:pr:`4300`).
+
+Contributors
+^^^^^^^^^^^^
+
+The following developers contributed to this release of Bodhi:
+
+* Adam Saleh
+* Mattia Verga
+
+
+v5.7.1
+======
+This is a bugfix release.
+
+Server upgrade instructions
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This release contains database migrations. To apply them, run::
+
+    $ sudo -u apache /usr/bin/alembic -c /etc/bodhi/alembic.ini upgrade head
+
+
+Summary of the migrations:
+
+* Add End of life (eol) field to the releases (:pr:`4241`).
+
+Backwards incompatible changes
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* Query on both relevant Greenwave decision contexts for critical-path updates.
+  `Update.get_test_gating_info()` now returns a list of decision dictionaries,
+  not a single decision dictionary. The API endpoint
+  `/updates/{id}/get-test-results` similarly now returns a single-key
+  dictionary whose value is a list of decisions, not a single decision
+  dictionary. (:issue:`4259`).
+
+Features
+^^^^^^^^
+
+* Added support for release names ending with "N" such as EPEL next
+  (:pr:`4222`).
+* Set a `delta` parameter of 30 days when quering datagrepper for bodhi-related
+  user activity (:pr:`4255`).
+* Added support for setting flags in generated advisories to require logging
+  out and logging back in for the update to take effect (:issue:`4213`).
+* Replace Greenwave decision change message consumer with ResultsDB and
+  WaiverDB message consumers (:issue:`4230`).
+
+Bug fixes
+^^^^^^^^^
+
+* Fix an issue that caused the builds in a side-tag update to not be tagged
+  correctly when the build list of the update was modified (:pr:`4161`).
+* Bodhi will now delete the side-tag in Koji when an update is pushed to
+  stable. Builds that were tagged in the side-tag but were not pushed as part
+  of the update will be untagged. This is required to make sure to not leave
+  stale side-tags in the Koji database (:pr:`4228`).
+* Updates for archived releases cannot be edited anymore (:pr:`4236`).
+* Correctly mark automatic updates as critpath when appropriate
+  (:issue:`4177`).
+* Fixed an issue with validators that prevents inconsistent refusal of bodhi
+  override with maximum duration (:issue:`4182`).
+* Fixed an issue where the search result box was cutted off out of screen
+  borders (:issue:`4206`).
+* Fixed a javascript bug which prevented the "waive tests" button to be
+  displayed in UI (:issue:`4208`).
+* Fixed an issue with validators that prevented a side-tag update owner to edit
+  their update after adding a build for which they don't have commit access
+  (:issue:`4209`).
+* Avoid gating status ping-pong on update creation, assume status 'waiting' for
+  2 hours or until first failed test (:issue:`4221`).
+* For new packages submitted to repositories, the changelog was not generated
+  and attached to the automatic Update. This prevented the bugs mentioned in
+  the changelog to be closed by Bodhi (:issue:`4232`).
+* Staging Bodhi now uses staging Bugzilla URL for bug links (:issue:`4238`).
+* Fixed an issue where editing Updates always caused to set the request to
+  Testing (:issue:`4263`).
+
+
+Development improvements
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+* Add End of life (eol) field to the releases (:issue:`4240`).
+
+Contributors
+^^^^^^^^^^^^
+
+The following developers contributed to this release of Bodhi:
+
+* Adam Saleh
+* Adam Williamson
+* Clement Verna
+* dalley
+* Justin Caratzas
+* Jonathan Wakely
+* Karma Dolkar
+* Kevin Fenzi
+* Lenka Segura
+* Mattia Verga
+* Miro Hrončok
+* Michael Scherer
+* Andrea Misuraca
+* Neal Gompa
+* Patrick Uiterwijk
+* Pierre-Yves Chibon
+* Rayan Das
+* Samyak Jain
+* Sebastian Wojciechowski
+* Tomas Hrcka
+
+v5.7.0
+======
+This is a feature release.
+
+
+Features
+^^^^^^^^
+
+* Query different Greenwave contexts for critical path updates, allowing for
+  stricter policies to apply (:pr:`4180`).
+* Use Pagure's `hascommit` new endpoint API to check user's rights to
+  create/edit updates. This allow collaborators to push updates for releases
+  for which they have commit access. (:pr:`4181`).
+
+Bug fixes
+^^^^^^^^^
+
+* Fixed an error about handling bugs in automatic updates (:pr:`4170`).
+* Side-tag wheren't emptied when updates for current releases were pushed to
+  stable (:pr:`4173`).
+* Bodhi will avoid sending both 'update can now be pushed' and 'update has been
+  pushed' notifications at the same time on updates pushed automatically
+  (:issue:`3846`).
+* Clear request status when release goes EOL (:issue:`4039`).
+* Allow bodhi to not operate automatically on bugs linked to in changelog for
+  specific releases (:issue:`4094`).
+* Use the release git branch name to query PDC for critpath components
+  (:issue:`4177`).
+* Avoid using datetime.utcnow() for updateinfo <updated_date> and <issued_date>
+  elements, use "date_submitted" instead. (:issue:`4189`).
+* Updates which already had a comment that they can be pushed to stable were
+  not automatically pushed to stable when the `stable_days` threshold was
+  reached (:issue:`4042`).
+
+Contributors
+^^^^^^^^^^^^
+
+The following developers contributed to this release of Bodhi:
+
+* Adam Saleh
+* Adam Williamson
+* Clement Verna
+* Daniel Alley
+* Mattia Verga
+* Andrea Misuraca
+
+
+v5.6.1
+======
+This is a bugfix release.
+
+
+Bug fixes
+^^^^^^^^^
+Fix two reflected XSS vulnerabilities - CVE: CVE-2020-15855
+
+
+Contributors
+^^^^^^^^^^^^
+
+The following developers contributed to this release of Bodhi:
+
+* Patrick Uiterwijk
+
+v5.6
+====
+This is a feature release.
+
+
+Dependency changes
+^^^^^^^^^^^^^^^^^^
+
+* Drop support for bleach 1.0 api (:pr:`3875`).
+* Markdown >= 3.0 is now required (:pr:`4134`).
+
+Server upgrade instructions
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This release contains database migrations. To apply them, run::
+
+    $ sudo -u apache /usr/bin/alembic -c /etc/bodhi/alembic.ini upgrade head
+
+
+Features
+^^^^^^^^
+
+* Added a `from_side_tag` bool search parameter for Updates and allow searching
+  for that and for gating status from WebUI (:pr:`4119`).
+* Allow overriding `critpath.stable_after_days_without_negative_karma` based on
+  release status (:pr:`4135`).
+* Users which owns a side-tag can now create updates from that side-tag even if
+  it contains builds for which they haven't commit access (:issue:`4014`).
+
+Bug fixes
+^^^^^^^^^
+
+* Fix encoding of package and user names in search results (:pr:`4104`).
+* Fix autotime display on update page (:pr:`4110`).
+* Set update.stable_days to 0 for Releases not composed by Bodhi itself
+  (:pr:`4111`).
+* Ignore builds in Unpushed updates when checking for duplicate builds
+  (:issue:`1809`).
+* Make automatic updates obsolete older updates stuck in testing due to failing
+  gating tests (:issue:`3916`).
+* Fix 404 pages for bot users with nonstandard characters in usernames
+  (:issue:`3993`).
+* Fixed documentation build with Sphinx3 (:issue:`4020`).
+* Serve the documentation directly from the WSGI application using WhiteNoise.
+  (:issue:`4066`).
+* Updates from side-tag for non-rawhide releases were not pushed to testing
+  (:issue:`4087`).
+* Side-tag updates builds were not editable in the WebUI (:issue:`4122`).
+* Fixed "re-trigger tests" button not showed on update page (:issue:`4144`).
+* Fixed a crash in automatic_updates handler due to `get_changelog()` returning
+  an unhandled exception (:issue:`4146`).
+* Fixed a crash in automatic_updates handler due to trying access update.alias
+  after the session was closed (:issue:`4147`).
+* Some comments orphaned from their update where causing internal server
+  errors. We now enforce a not null check so that a comment cannot be created
+  without associating it to an update. The orphaned comments are removed from
+  the database by the migration script. (:issue:`4155`).
+* Dockerfile for pip CI tests has been fixed (:issue:`4158`).
+
+Development improvements
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+* Rename `Release.get_testing_side_tag()` to `get_pending_testing_side_tag()`
+  to avoid confusion (:pr:`4109`).
+* Added F33 to tests pipeline (:pr:`4132`).
+
+Contributors
+^^^^^^^^^^^^
+
+The following developers contributed to this release of Bodhi:
+
+* Adam Saleh
+* Clement Verna
+* Justin Caratzas
+* Jonathan Wakely
+* Karma Dolkar
+* Mattia Verga
+* Pierre-Yves Chibon
+* Rayan Das
+* Sebastian Wojciechowski
+
+
+v5.5
+====
+This is a bugfix release.
+
+
+Bug fixes
+^^^^^^^^^
+
+* Disable manual creation of updates for releases not composed by Bodhi and add
+  some bits in the docs on how to handle automatic updates not being created
+  (:issue:`4058`).
+* Fix TestCase validation upon feedback submission (:issue:`4088`).
+* Do not let update through when bodhi fails to talk to greenwave.
+  (:issue:`4089`).
+* Fix package name encoding in URLs (:issue:`4095`).
+
+Contributors
+^^^^^^^^^^^^
+
+The following developers contributed to this release of Bodhi:
+
+* Adam Saleh
+* Clement Verna
+* Karma Dolkar
+* Mattia Verga
+* Pierre-Yves Chibon
+
+
+v5.4.1
+======
+This is a {major|feature|bugfix} release that adds [short summary].
+
+
+Bug fixes
+^^^^^^^^^
+
+* Make sure to close the bugs associated to a rawhide update. (:issue:`4067`).
+
+Contributors
+^^^^^^^^^^^^
+
+The following developers contributed to this release of Bodhi:
+
+* Clement Verna
+* Mattia Verga
+
+
 v5.4.0
 ======
 This is a minor release.

@@ -1,0 +1,9 @@
+pytest
+pytest-cov
+pytest-mock
+conu
+psycopg2
+docker
+munch
+fedora-messaging
+requests

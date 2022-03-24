@@ -1,62 +1,85 @@
+queue_rules:
+  - name: default
+    conditions:
+    - label!=WIP
+    - approved-reviews-by=@fedora-infra/bodhi
+    - status-success=DCO
+    - status-success=Pre-commit checks
+    - status-success=Diff-cover check
+    - status-success=Integration Tests (f34)
+    - status-success=Integration Tests (f35)
+    - status-success=Integration Tests (f36)
+    - status-success=Integration Tests (rawhide)
+    - status-success=Unit Tests (f34, bodhi-client)
+    - status-success=Unit Tests (f34, bodhi-messages)
+    - status-success=Unit Tests (f34, bodhi-server)
+    - status-success=Unit Tests (f35, bodhi-client)
+    - status-success=Unit Tests (f35, bodhi-messages)
+    - status-success=Unit Tests (f35, bodhi-server)
+    - status-success=Unit Tests (f36, bodhi-client)
+    - status-success=Unit Tests (f36, bodhi-messages)
+    - status-success=Unit Tests (f36, bodhi-server)
+    - status-success=Unit Tests (pip, bodhi-client)
+    - status-success=Unit Tests (pip, bodhi-messages)
+    - status-success=Unit Tests (pip, bodhi-server)
+    - status-success=Unit Tests (rawhide, bodhi-client)
+    - status-success=Unit Tests (rawhide, bodhi-messages)
+    - status-success=Unit Tests (rawhide, bodhi-server)
+    - status-success=Build Documentation (f34)
+    - status-success=Build Documentation (f35)
+    - status-success=Build Documentation (f36)
+    - status-success=Build Documentation (pip)
+    - status-success=Build Documentation (rawhide)
+
 pull_request_rules:
 - actions:
-    merge:
+    queue:
       method: rebase
-      rebase_fallback: null
-      strict: true
+      name: default
   conditions:
   - label!=WIP
   - approved-reviews-by=@fedora-infra/bodhi
   - status-success=DCO
-  - status-success=f31-docs
-  - status-success=f31-unit
-  - status-success=f31-diff-cover
-  - status-success=f31-integration
-  - status-success=pip-docs
-  - status-success=pip-flake8
-  - status-success=pip-mypy
-  - status-success=pip-pydocstyle
-  - status-success=pip-unit
-  - status-success=pip-diff-cover
-  - status-success=pip-integration
+  - status-success=Pre-commit checks
+  - status-success=Diff-cover check
+  - status-success=Integration Tests (f34)
+  - status-success=Integration Tests (f35)
+  - status-success=Integration Tests (f36)
+  - status-success=Integration Tests (rawhide)
+  - status-success=Unit Tests (f34, bodhi-client)
+  - status-success=Unit Tests (f34, bodhi-messages)
+  - status-success=Unit Tests (f34, bodhi-server)
+  - status-success=Unit Tests (f35, bodhi-client)
+  - status-success=Unit Tests (f35, bodhi-messages)
+  - status-success=Unit Tests (f35, bodhi-server)
+  - status-success=Unit Tests (f36, bodhi-client)
+  - status-success=Unit Tests (f36, bodhi-messages)
+  - status-success=Unit Tests (f36, bodhi-server)
+  - status-success=Unit Tests (pip, bodhi-client)
+  - status-success=Unit Tests (pip, bodhi-messages)
+  - status-success=Unit Tests (pip, bodhi-server)
+  - status-success=Unit Tests (rawhide, bodhi-client)
+  - status-success=Unit Tests (rawhide, bodhi-messages)
+  - status-success=Unit Tests (rawhide, bodhi-server)
+  - status-success=Build Documentation (f34)
+  - status-success=Build Documentation (f35)
+  - status-success=Build Documentation (f36)
+  - status-success=Build Documentation (pip)
+  - status-success=Build Documentation (rawhide)
   name: default
 - actions:
     backport:
       branches:
-      - '5.0'
+      - '5.6'
   conditions:
   - label!=WIP
-  - label=5.0-backports
-  name: backport 5.0
+  - label=5.6-backports
+  name: backport 5.6
 - actions:
     backport:
       branches:
-      - '5.1'
+      - '5.7'
   conditions:
   - label!=WIP
-  - label=5.1-backports
-  name: backport 5.1
-- actions:
-    backport:
-      branches:
-      - '5.2'
-  conditions:
-  - label!=WIP
-  - label=5.2-backports
-  name: backport 5.2
-- actions:
-    backport:
-      branches:
-      - '5.3'
-  conditions:
-  - label!=WIP
-  - label=5.3-backports
-  name: backport 5.3
-- actions:
-    backport:
-      branches:
-      - '5.4'
-  conditions:
-  - label!=WIP
-  - label=5.4-backports
-  name: backport 5.4
+  - label=5.7-backports
+  name: backport 5.7
