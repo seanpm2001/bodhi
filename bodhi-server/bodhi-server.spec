@@ -1,6 +1,6 @@
 # Created by pyp2rpm-3.3.7
 %global pypi_name bodhi-server
-%global pypi_version 5.7.5
+%global pypi_version 6.0.0
 
 Name:           %{pypi_name}
 Version:        %{pypi_version}
@@ -13,40 +13,9 @@ Source0:        %{pypi_name}-%{pypi_version}.tar.gz
 BuildArch:      noarch
 
 BuildRequires:  make
+BuildRequires:  pyproject-rpm-macros
 BuildRequires:  python3-devel
 BuildRequires:  python3-sphinx
-BuildRequires:  python3dist(alembic)
-BuildRequires:  python3dist(arrow)
-BuildRequires:  python3dist(authlib)
-BuildRequires:  python3dist(backoff)
-BuildRequires:  python3dist(bleach)
-BuildRequires:  python3dist(celery) >= 4.2
-BuildRequires:  python3dist(click)
-BuildRequires:  python3dist(colander)
-BuildRequires:  python3dist(cornice) >= 3.1
-BuildRequires:  python3dist(dogpile.cache)
-BuildRequires:  python3dist(fedora-messaging)
-BuildRequires:  python3dist(feedgen) >= 0.7
-BuildRequires:  python3dist(jinja2)
-BuildRequires:  python3dist(koji)
-BuildRequires:  python3dist(markdown)
-BuildRequires:  python3dist(prometheus-client)
-BuildRequires:  python3dist(psycopg2)
-BuildRequires:  python3dist(py3dns)
-BuildRequires:  python3dist(pyasn1-modules)
-BuildRequires:  python3dist(pylibravatar)
-BuildRequires:  python3dist(pyramid) >= 1.7
-BuildRequires:  python3dist(pyramid-fas-openid)
-BuildRequires:  python3dist(pyramid-mako)
-BuildRequires:  python3dist(python-bugzilla)
-BuildRequires:  python3dist(pyyaml)
-BuildRequires:  python3dist(requests)
-BuildRequires:  python3dist(responses)
-BuildRequires:  python3dist(setuptools)
-BuildRequires:  python3dist(simplemediawiki) = 1.2~b2
-BuildRequires:  python3dist(sqlalchemy)
-BuildRequires:  python3dist(waitress)
-BuildRequires:  python3dist(whitenoise)
 
 Requires: bodhi-client == %{version}-%{release}
 Requires: python3-bodhi-messages == %{version}-%{release}
@@ -54,7 +23,6 @@ Requires: fedora-messaging
 Requires: git
 Requires: httpd
 Requires: intltool
-Requires: python3-koji
 Requires: python3-librepo
 Requires: python3-mod_wsgi
 
@@ -103,12 +71,15 @@ repositories.
 # Remove bundled egg-info
 rm -rf %{pypi_name}.egg-info
 
+%generate_buildrequires
+%pyproject_buildrequires
+
 %build
-%py3_build
+%pyproject_wheel
 make %{?_smp_mflags} -C docs man
 
 %install
-%py3_install
+%pyproject_install
 
 %{__mkdir_p} %{buildroot}/var/lib/bodhi
 %{__mkdir_p} %{buildroot}/var/cache/bodhi
@@ -124,6 +95,9 @@ install -m 640 alembic.ini %{buildroot}%{_sysconfdir}/bodhi/alembic.ini
 install apache/bodhi.wsgi %{buildroot}%{_datadir}/bodhi/bodhi.wsgi
 install -d %{buildroot}%{_mandir}/man1
 install -pm0644 docs/_build/*.1 %{buildroot}%{_mandir}/man1/
+
+%check
+%{pytest} -v
 
 %files -n %{pypi_name}
 %doc README.rst bodhi/server/migrations/README.rst bodhi/server/static/vendor/fedora-bootstrap/README.rst
@@ -141,7 +115,7 @@ install -pm0644 docs/_build/*.1 %{buildroot}%{_mandir}/man1/
 %config(noreplace) %{_sysconfdir}/httpd/conf.d/bodhi.conf
 %dir %{_sysconfdir}/bodhi/
 %{python3_sitelib}/bodhi
-%{python3_sitelib}/bodhi_server-%{pypi_version}-py%{python3_version}.egg-info
+%{python3_sitelib}/bodhi_server-%{pypi_version}.dist-info
 %{_mandir}/man1/bodhi-*.1*
 %{_mandir}/man1/initialize_bodhi_db.1*
 %attr(-,bodhi,root) %{_datadir}/bodhi
@@ -156,13 +130,13 @@ install -pm0644 docs/_build/*.1 %{buildroot}%{_mandir}/man1/
 %files -n bodhi-composer
 %license COPYING
 %doc README.rst
-%{python3_sitelib}/bodhi/server/tasks/composer.py
-# The __pycache__ folder itself is owned by bodhi-server.
-%{python3_sitelib}/bodhi/server/tasks/__pycache__/composer.*
-%{python3_sitelib}/bodhi/server/metadata.py
-%{python3_sitelib}/bodhi/server/__pycache__/metadata.*
+%pycached %{python3_sitelib}/bodhi/server/tasks/composer.py
+%pycached %{python3_sitelib}/bodhi/server/metadata.py
 
 %changelog
+* Fri Apr 08 2022 Aurelien Bompard <abompard@fedoraproject.org> - 6.0.0-1
+- Update to 6.0.0.
+
 * Wed Feb 23 2022 Ryan Lerch <rlerch@redhat.com> - 5.7.5-0
 - Prepare the Bodhi client to be compatible with an OIDC-enabled server. PR#4391.
 

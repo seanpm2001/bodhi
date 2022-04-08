@@ -37,7 +37,10 @@ from bodhi.server import bugs, buildsys
 from bodhi.server.config import config as bodhi_config
 
 
-__version__ = "5.7.5"
+import importlib.metadata
+METADATA = importlib.metadata.metadata('bodhi-server')
+__version__ = METADATA['version']
+
 
 # This is a regular expression used to match username mentions in comments.
 MENTION_RE = r'(?<!\S)(@\w+)'
