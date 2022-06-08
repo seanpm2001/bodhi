@@ -246,6 +246,7 @@ class DeclEnumType(SchemaType, TypeDecorator):
     """A database column type for an enum."""
 
     cache_ok = True
+    """See ``sqlalchemy.types.TypeDecorator.cache_ok``"""
 
     def __init__(self, enum):
         """
@@ -834,7 +835,7 @@ class Release(Base):
             Bodhi or not. Defaults to True.
         create_automatic_updates (bool): A flag indicating that updates should
             be created automatically for Koji builds tagged into the
-            `candidate_tag`. Defaults to False.
+            ``candidate_tag``. Defaults to False.
         package_manager (EnumSymbol): The package manager this release uses. This must be one of
             the values defined in :class:`PackageManager`.
         testing_repository (str): The name of repository where updates are placed for
@@ -1836,7 +1837,7 @@ class Update(Base):
 
     The update contains not just one package, but a collection of packages. Each
     package can be referenced only once in one Update. Packages are referenced
-    through their Build objects using field `builds` below.
+    through their Build objects using field ``builds`` below.
 
     Attributes:
         autokarma (bool): A boolean that indicates whether or not the update will
@@ -2620,24 +2621,22 @@ class Update(Base):
                     'sent back to testing.',
                 })
                 builds_to_tag = [b.nvr for b in up.builds]
-                if up.from_tag and not up.release.composed_by_bodhi:
-                    tags = [up.release.get_pending_signing_side_tag(up.from_tag)]
-                elif up.release.pending_signing_tag:
-                    tags = [up.release.pending_signing_tag]
             else:
                 # No need to unpush the update, just tag new builds
                 # into the appropriate pending-signing tag
+                # and release-candidate tag if builds are in side-tag
                 builds_to_tag = new_builds
-                if up.from_tag and not up.release.composed_by_bodhi:
-                    tags = [up.release.get_pending_signing_side_tag(up.from_tag)]
-                elif up.from_tag:
-                    tags = [up.release.candidate_tag]
-                    if up.release.pending_signing_tag:
-                        tags.append(up.release.pending_signing_tag)
-                else:
-                    # For normal updates the builds already have candidate_tag
-                    if up.release.pending_signing_tag:
-                        tags = [up.release.pending_signing_tag]
+
+            if up.from_tag and not up.release.composed_by_bodhi:
+                tags = [up.release.get_pending_signing_side_tag(up.from_tag)]
+            elif up.from_tag:
+                tags = [up.release.candidate_tag]
+                if up.release.pending_signing_tag:
+                    tags.append(up.release.pending_signing_tag)
+            else:
+                # For normal updates the builds already have candidate_tag
+                if up.release.pending_signing_tag:
+                    tags = [up.release.pending_signing_tag]
 
             for tag in tags:
                 tag_update_builds_task.delay(tag=tag, builds=builds_to_tag)

@@ -85,9 +85,9 @@ bodhi-messages = "^6.0.0"
 celery = ">=5.2.1"
 click = ">=7.1.2"
 colander = "^1.8.3"
-cornice = "^5.0.3"
+cornice = ">=5.0.3"
 "dogpile.cache" = "^1.1.2"
-pyasn1-modules = "^0.2.8" # Due to an unfortunate dash in its name, installs break if pyasn1 is installed first 
+pyasn1-modules = "^0.2.8" # Due to an unfortunate dash in its name, installs break if pyasn1 is installed first
 fedora-messaging = "^3.0.0"
 feedgen= "^0.9.0"
 Jinja2 = ">=2.11.3"
@@ -109,8 +109,7 @@ PyYAML = ">=5.4.1"
 requests = "^2.25.1"
 simplemediawiki = {version = "^1.2.0b2", allow-prereleases = true}
 SQLAlchemy = "^1.3.24"
-waitress = "^1.4.4"
-whitenoise = "^5.1.0"
+waitress = ">=1.4.4"
 
 [tool.pytest.ini_options]
 addopts = "--cov-config .coveragerc --cov=bodhi --cov-report term --cov-report xml --cov-report html"
