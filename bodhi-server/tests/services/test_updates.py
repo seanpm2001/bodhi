@@ -1069,6 +1069,27 @@ class TestSetRequest(BasePyTestCase):
         )
 
     @mock.patch(**mock_valid_requirements)
+    def test_set_request_rawhide(self, *args):
+        """Ensure that we get an error if trying to set request on a rawhide update"""
+        nvr = 'bodhi-2.0-1.fc17'
+
+        up = self.db.query(Build).filter_by(nvr=nvr).one().update
+        up.locked = False
+        up.requirements = ''
+        up.test_gating_status = TestGatingStatus.passed
+        up.date_testing = datetime.utcnow() - timedelta(days=8)
+        up.release.composed_by_bodhi = False
+
+        post_data = dict(update=nvr, request='stable',
+                         csrf_token=self.app.get('/csrf').json_body['csrf_token'])
+        res = self.app.post_json(f'/updates/{up.alias}/request', post_data, status=400)
+
+        assert res.json_body['status'] == 'error'
+        assert res.json_body['errors'][0]['description'] == (
+            "Setting a request on an Update for a Release not composed by Bodhi is not allowed"
+        )
+
+    @mock.patch(**mock_valid_requirements)
     def test_set_request_archived_release(self, *args):
         """Ensure that we get an error if trying to setrequest of a update in an archived release"""
         nvr = 'bodhi-2.0-1.fc17'
@@ -5257,8 +5278,9 @@ class TestUpdatesService(BasePyTestCase):
         assert 'text/html' in resp.headers['Content-Type']
         assert 'kernel-3.11.5-300.fc17' in resp
 
-    @mock.patch(**mock_valid_requirements)
-    def test_disable_autopush_non_critical_update_with_negative_karma(self, *args):
+    @unused_mock_patch(**mock_valid_requirements)
+    @pytest.mark.parametrize('rawhide_workflow', (True, False))
+    def test_disable_autopush_non_critical_update_with_negative_karma(self, rawhide_workflow):
         """Disable autokarma on non-critical updates upon negative comment."""
         user = User(name='bob')
         self.db.add(user)
@@ -5276,6 +5298,8 @@ class TestUpdatesService(BasePyTestCase):
         assert resp.json['request'] == 'testing'
         up = self.db.query(Update).filter_by(alias=resp.json['alias']).one()
         up.status = UpdateStatus.testing
+        if rawhide_workflow:
+            up.release.composed_by_bodhi = False
         # Clear pending messages
         self.db.info['messages'] = []
         self.db.commit()
@@ -5283,8 +5307,12 @@ class TestUpdatesService(BasePyTestCase):
         up.comment(self.db, 'Failed to work', author='ralph', karma=-1)
         up = self.db.query(Update).filter_by(alias=resp.json['alias']).one()
 
-        expected_comment = config.get('disable_automatic_push_to_stable')
-        assert up.comments[3].text == expected_comment
+        if not rawhide_workflow:
+            expected_comment = config.get('disable_automatic_push_to_stable')
+            assert len(up.comments) == 4
+            assert up.comments[-1].text == expected_comment
+        else:
+            assert len(up.comments) == 3
 
         up.comment(self.db, 'LGTM Now', author='ralph', karma=1)
         up = self.db.query(Update).filter_by(alias=resp.json['alias']).one()
@@ -5296,7 +5324,10 @@ class TestUpdatesService(BasePyTestCase):
         up = self.db.query(Update).filter_by(alias=resp.json['alias']).one()
 
         assert up.karma == 3
-        assert up.autokarma is False
+        if not rawhide_workflow:
+            assert up.autokarma is False
+        else:
+            assert up.autokarma is True
 
         # Request and Status remains testing since the autopush is disabled
         up = self.db.query(Update).filter_by(alias=resp.json['alias']).one()

@@ -3,9 +3,11 @@ on:
   push:
     branches:
       - develop
+      - 6.0
   pull_request:
     branches:
       - develop
+      - 6.0
 
 name: Run tests
 
@@ -30,6 +32,8 @@ jobs:
     name: Diff-cover check
     runs-on: ubuntu-latest
     needs: unit_tests
+    # Run diff-cover even if the unit tests failed on rawhide:
+    if: always()
     steps:
       - uses: actions/checkout@v2
         with:
@@ -51,16 +55,16 @@ jobs:
 
   integration_tests:
     name: Integration Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v2
 
       - name: Install deps
-        run: pip install click -r devel/ci/integration/requirements.txt
+        run: pip3 install click -r devel/ci/integration/requirements.txt
 
       - name: Run the integration tests
-        run: devel/ci/bodhi-ci integration -r ${{ matrix.release }}
+        run: python3 devel/ci/bodhi-ci integration -r ${{ matrix.release }}
     strategy:
       fail-fast: false
       matrix:

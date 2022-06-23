@@ -1581,13 +1581,13 @@ class TestEdit:
             mock.call(
                 'updates/', auth=True, verb='POST',
                 data={
-                    'close_bugs': False, 'stable_karma': 3, 'csrf_token': 'a_csrf_token',
+                    'close_bugs': True, 'stable_karma': 3, 'csrf_token': 'a_csrf_token',
                     'staging': False, 'builds': ['nodejs-grunt-wrap-0.3.0-2.fc25'],
-                    'autokarma': False, 'edited': 'FEDORA-2017-c95b33872d',
+                    'autokarma': True, 'edited': 'FEDORA-2017-c95b33872d',
                     'suggest': 'unspecified', 'notes': 'New package.',
                     'notes_file': None, 'request': None, 'unstable_karma': -3,
                     'bugs': '1234,5678', 'requirements': '', 'type': 'newpackage',
-                    'severity': 'low', 'display_name': None, 'autotime': False,
+                    'severity': 'low', 'display_name': None, 'autotime': True,
                     'stable_days': None}),
             mock.call(
                 'updates/FEDORA-EPEL-2016-3081a94111/get-test-results',
@@ -1610,13 +1610,13 @@ class TestEdit:
             mock.call(
                 'updates/', auth=True, verb='POST',
                 data={
-                    'close_bugs': False, 'stable_karma': 3, 'csrf_token': 'a_csrf_token',
+                    'close_bugs': True, 'stable_karma': 3, 'csrf_token': 'a_csrf_token',
                     'staging': False, 'builds': ['nodejs-grunt-wrap-0.3.0-2.fc25'],
-                    'autokarma': False, 'edited': 'FEDORA-2017-c95b33872d',
+                    'autokarma': True, 'edited': 'FEDORA-2017-c95b33872d',
                     'suggest': 'unspecified', 'notes': 'Updated package.',
                     'notes_file': None, 'request': None, 'unstable_karma': -3,
                     'bugs': '1420605', 'requirements': '', 'type': 'newpackage',
-                    'severity': 'low', 'display_name': None, 'autotime': False, 'stable_days': None
+                    'severity': 'low', 'display_name': None, 'autotime': True, 'stable_days': None
                 }
             ),
             mock.call(
@@ -1644,13 +1644,13 @@ class TestEdit:
             mock.call(
                 'updates/', auth=True, verb='POST',
                 data={
-                    'close_bugs': False, 'stable_karma': 3, 'csrf_token': 'a_csrf_token',
+                    'close_bugs': True, 'stable_karma': 3, 'csrf_token': 'a_csrf_token',
                     'staging': False, 'builds': ['nodejs-grunt-wrap-0.3.0-2.fc25'],
-                    'autokarma': False, 'edited': 'FEDORA-2017-c95b33872d',
+                    'autokarma': True, 'edited': 'FEDORA-2017-c95b33872d',
                     'suggest': 'unspecified', 'notes': 'this is an edited note',
                     'notes_file': None, 'request': None, 'severity': 'low',
                     'bugs': '1420605', 'requirements': '', 'unstable_karma': -3,
-                    'type': 'newpackage', 'display_name': None, 'autotime': False,
+                    'type': 'newpackage', 'display_name': None, 'autotime': True,
                     'stable_days': None,
                 }
             ),
@@ -1683,13 +1683,13 @@ class TestEdit:
                 mock.call(
                     'updates/', auth=True, verb='POST',
                     data={
-                        'close_bugs': False, 'stable_karma': 3, 'csrf_token': 'a_csrf_token',
+                        'close_bugs': True, 'stable_karma': 3, 'csrf_token': 'a_csrf_token',
                         'staging': False, 'builds': ['nodejs-grunt-wrap-0.3.0-2.fc25'],
-                        'autokarma': False, 'edited': 'FEDORA-2017-c95b33872d',
+                        'autokarma': True, 'edited': 'FEDORA-2017-c95b33872d',
                         'suggest': 'unspecified', 'notes': 'This is a --notes-file note!',
                         'notes_file': 'notefile.txt', 'request': None, 'severity': 'low',
                         'bugs': '1420605', 'requirements': '', 'unstable_karma': -3,
-                        'type': 'newpackage', 'display_name': None, 'autotime': False,
+                        'type': 'newpackage', 'display_name': None, 'autotime': True,
                         'stable_days': None
                     }
                 ),
@@ -1721,14 +1721,14 @@ class TestEdit:
             mock.call(
                 'updates/', auth=True, verb='POST',
                 data={
-                    'close_bugs': False, 'stable_karma': 3, 'csrf_token': 'a_csrf_token',
+                    'close_bugs': True, 'stable_karma': 3, 'csrf_token': 'a_csrf_token',
                     'staging': False, 'display_name': None,
                     'builds': ['tar-1.29-4.fc25', 'nedit-5.7-1.fc25'],
-                    'autokarma': False, 'edited': 'FEDORA-2017-c95b33872d',
+                    'autokarma': True, 'edited': 'FEDORA-2017-c95b33872d',
                     'suggest': u'unspecified', 'notes': u'add and remove builds',
                     'notes_file': None, 'request': None, 'severity': u'low',
                     'bugs': '1420605', 'requirements': u'', 'unstable_karma': -3,
-                    'type': 'newpackage', 'autotime': False, 'stable_days': None
+                    'type': 'newpackage', 'autotime': True, 'stable_days': None
                 }
             ),
             mock.call(
@@ -1738,108 +1738,9 @@ class TestEdit:
         ]
         assert mocked_client_class.send_request.mock_calls == calls
 
-    def test_from_tag_flag(self, mocked_client_class, mocker):
-        """
-        Assert correct behavior with the --from-tag flag.
-        """
-        mocked_client_class.send_request.return_value = client_test_data.EXAMPLE_UPDATE_MUNCH
-        data = client_test_data.EXAMPLE_QUERY_MUNCH.copy()
-        data.updates[0]['from_tag'] = 'fake_tag'
-        data.updates[0]['release']['composed_by_bodhi'] = False
-        mocked_client_class.query = mocker.Mock(return_value=data)
-        runner = testing.CliRunner()
-
-        result = runner.invoke(
-            cli.edit, ['FEDORA-2017-c95b33872d', '--from-tag',
-                       '--notes', 'Updated package.',
-                       '--url', 'http://localhost:6543'])
-
-        assert result.exit_code == 0
-        mocked_client_class.query.assert_called_with(updateid='FEDORA-2017-c95b33872d')
-        calls = [
-            mock.call(
-                'updates/', auth=True, verb='POST',
-                data={
-                    'close_bugs': False, 'stable_karma': 3, 'csrf_token': 'a_csrf_token',
-                    'autokarma': False, 'edited': 'FEDORA-2017-c95b33872d',
-                    'suggest': 'unspecified', 'notes': 'Updated package.',
-                    'notes_file': None, 'request': None, 'unstable_karma': -3,
-                    'bugs': '1420605', 'requirements': '', 'type': 'newpackage',
-                    'severity': u'low', 'display_name': None, 'autotime': False,
-                    'stable_days': None, 'from_tag': 'fake_tag',
-                    'staging': False,
-                }
-            ),
-            mock.call(
-                'updates/FEDORA-EPEL-2016-3081a94111/get-test-results',
-                verb='GET'
-            )
-        ]
-        assert mocked_client_class.send_request.mock_calls == calls
-
-    def test_from_tag_flag_no_tag(self, mocked_client_class, mocker):
-        """
-        Assert --from-tag bails out if the update wasn't created from a tag.
-        """
-        mocked_client_class.query = mocker.Mock(return_value=client_test_data.EXAMPLE_QUERY_MUNCH)
-        runner = testing.CliRunner()
-
-        result = runner.invoke(
-            cli.edit, ['FEDORA-2017-c95b33872d', '--from-tag',
-                       '--notes', 'Updated package.',
-                       '--url', 'http://localhost:6543'])
-
-        assert result.exit_code == 1
-        assert result.output == ("ERROR: This update was not created from a tag."
-                                 " Please remove --from_tag and try again.\n")
-        mocked_client_class.query.assert_called_with(
-            updateid='FEDORA-2017-c95b33872d')
-
     def test_from_tag_addbuilds(self, mocked_client_class, mocker):
         """
-        Assert --from-tag can't be used with --addbuilds.
-        """
-        data = client_test_data.EXAMPLE_QUERY_MUNCH.copy()
-        data.updates[0]['from_tag'] = 'fake_tag'
-        mocked_client_class.query = mocker.Mock(return_value=data)
-
-        runner = testing.CliRunner()
-
-        result = runner.invoke(
-            cli.edit, ['FEDORA-2017-c95b33872d', '--from-tag',
-                       '--addbuilds', 'tar-1.29-4.fc25,nedit-5.7-1.fc25',
-                       '--notes', 'Updated package.',
-                       '--url', 'http://localhost:6543'])
-
-        assert result.exit_code == 1
-        assert result.output == ("ERROR: You have to use the web interface to update"
-                                 " builds in a side-tag update.\n")
-        mocked_client_class.query.assert_called_with(updateid='FEDORA-2017-c95b33872d')
-
-    def test_from_tag_removebuilds(self, mocked_client_class, mocker):
-        """
-        Assert --from-tag can't be used with --removebuilds.
-        """
-        data = client_test_data.EXAMPLE_QUERY_MUNCH.copy()
-        data.updates[0]['from_tag'] = 'fake_tag'
-        mocked_client_class.query = mocker.Mock(return_value=data)
-
-        runner = testing.CliRunner()
-
-        result = runner.invoke(
-            cli.edit, ['FEDORA-2017-c95b33872d', '--from-tag',
-                       '--removebuilds', 'nodejs-grunt-wrap-0.3.0-2.fc25',
-                       '--notes', 'Updated package.',
-                       '--url', 'http://localhost:6543'])
-
-        assert result.exit_code == 1
-        assert result.output == ("ERROR: You have to use the web interface to update"
-                                 " builds in a side-tag update.\n")
-        mocked_client_class.query.assert_called_with(updateid='FEDORA-2017-c95b33872d')
-
-    def test_from_tag_missing_flag(self, mocked_client_class, mocker):
-        """
-        Assert --from-tag is required when editing a side-tag update.
+        Assert --addbuilds can't be used with an update created from a side-tag.
         """
         data = client_test_data.EXAMPLE_QUERY_MUNCH.copy()
         data.updates[0]['from_tag'] = 'fake_tag'
@@ -1854,9 +1755,70 @@ class TestEdit:
                        '--url', 'http://localhost:6543'])
 
         assert result.exit_code == 1
-        assert result.output == ("ERROR: This update was created from a side-tag."
-                                 " Please add --from_tag and try again.\n")
+        assert result.output == ("ERROR: The --addbuilds and --removebuilds options"
+                                 " cannot be used with a side-tag update.\n")
         mocked_client_class.query.assert_called_with(updateid='FEDORA-2017-c95b33872d')
+
+    def test_from_tag_removebuilds(self, mocked_client_class, mocker):
+        """
+        Assert --removebuilds can't be used with an update created from a side-tag.
+        """
+        data = client_test_data.EXAMPLE_QUERY_MUNCH.copy()
+        data.updates[0]['from_tag'] = 'fake_tag'
+        mocked_client_class.query = mocker.Mock(return_value=data)
+
+        runner = testing.CliRunner()
+
+        result = runner.invoke(
+            cli.edit, ['FEDORA-2017-c95b33872d',
+                       '--removebuilds', 'nodejs-grunt-wrap-0.3.0-2.fc25',
+                       '--notes', 'Updated package.',
+                       '--url', 'http://localhost:6543'])
+
+        assert result.exit_code == 1
+        assert result.output == ("ERROR: The --addbuilds and --removebuilds options"
+                                 " cannot be used with a side-tag update.\n")
+        mocked_client_class.query.assert_called_with(updateid='FEDORA-2017-c95b33872d')
+
+    def test_from_tag(self, mocked_client_class, mocker):
+        """
+        The build list is always refreshed from the side-tag by validate_from_tag()
+        for a side-tag update.
+        """
+        mocked_client_class.send_request.return_value = client_test_data.EXAMPLE_UPDATE_MUNCH
+        data = client_test_data.EXAMPLE_QUERY_MUNCH.copy()
+        data.updates[0]['from_tag'] = 'fake_tag'
+        data.updates[0]['release']['composed_by_bodhi'] = False
+        mocked_client_class.query = mocker.Mock(return_value=data)
+        runner = testing.CliRunner()
+
+        result = runner.invoke(
+            cli.edit, ['FEDORA-2017-c95b33872d',
+                       '--notes', 'Updated package.',
+                       '--url', 'http://localhost:6543'])
+
+        assert result.exit_code == 0
+        mocked_client_class.query.assert_called_with(updateid='FEDORA-2017-c95b33872d')
+        calls = [
+            mock.call(
+                'updates/', auth=True, verb='POST',
+                data={
+                    'close_bugs': True, 'stable_karma': 3, 'csrf_token': 'a_csrf_token',
+                    'autokarma': True, 'edited': 'FEDORA-2017-c95b33872d',
+                    'suggest': 'unspecified', 'notes': 'Updated package.',
+                    'notes_file': None, 'request': None, 'unstable_karma': -3,
+                    'bugs': '1420605', 'requirements': '', 'type': 'newpackage',
+                    'severity': u'low', 'display_name': None, 'autotime': True,
+                    'stable_days': None, 'from_tag': 'fake_tag',
+                    'staging': False,
+                }
+            ),
+            mock.call(
+                'updates/FEDORA-EPEL-2016-3081a94111/get-test-results',
+                verb='GET'
+            )
+        ]
+        assert mocked_client_class.send_request.mock_calls == calls
 
     def test_notes_and_notes_file(self, mocked_client_class):
         """
@@ -1927,14 +1889,14 @@ class TestEdit:
             mock.call(
                 'updates/', auth=True, verb='POST',
                 data={
-                    'close_bugs': False, 'stable_karma': 3, 'csrf_token': 'a_csrf_token',
+                    'close_bugs': True, 'stable_karma': 3, 'csrf_token': 'a_csrf_token',
                     'staging': False, 'builds': ['nodejs-grunt-wrap-0.3.0-2.fc25'],
-                    'autokarma': False, 'edited': 'FEDORA-2017-c95b33872d',
+                    'autokarma': True, 'edited': 'FEDORA-2017-c95b33872d',
                     'suggest': 'unspecified', 'notes': 'testing required tasks',
                     'notes_file': None, 'request': None, 'severity': 'low',
                     'bugs': '1420605', 'unstable_karma': -3, 'display_name': None,
                     'requirements': 'dist.depcheck dist.rpmdeplint', 'type': 'newpackage',
-                    'autotime': False, 'stable_days': None
+                    'autotime': True, 'stable_days': None
                 }
             ),
             mock.call(
@@ -1975,13 +1937,13 @@ class TestEdit:
             mock.call(
                 'updates/', auth=True, verb='POST',
                 data={
-                    'close_bugs': False, 'stable_karma': 3, 'csrf_token': 'a_csrf_token',
+                    'close_bugs': True, 'stable_karma': 3, 'csrf_token': 'a_csrf_token',
                     'staging': False, 'builds': ['nodejs-grunt-wrap-0.3.0-2.fc25'],
-                    'autokarma': False, 'edited': 'FEDORA-2017-c95b33872d',
+                    'autokarma': True, 'edited': 'FEDORA-2017-c95b33872d',
                     'suggest': 'unspecified', 'notes': 'New package.', 'display_name': None,
                     'notes_file': None, 'request': None, 'severity': 'low',
                     'bugs': '', 'requirements': '', 'unstable_karma': -3, 'type': 'newpackage',
-                    'autotime': False, 'stable_days': None
+                    'autotime': True, 'stable_days': None
                 }
             ),
             mock.call(

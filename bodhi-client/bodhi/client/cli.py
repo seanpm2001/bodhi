@@ -126,13 +126,16 @@ new_edit_options = [
     click.option('--notes', help='Update description'),
     click.option('--notes-file', help='Update description from a file'),
     click.option('--bugs', help='Comma-separated list of bug numbers', default=''),
-    click.option('--close-bugs', is_flag=True, help='Automatically close bugs'),
+    click.option('--close-bugs/--no-close-bugs', default=None,
+                 help='Automatically close bugs or not'),
     click.option('--request', help='Requested repository',
                  type=click.Choice(constants.REQUEST_TYPES)),
-    click.option('--autotime', is_flag=True, help='Enable stable push base on time in testing'),
+    click.option('--autotime/--no-autotime', default=None,
+                 help='Enable/Disable stable push based on time in testing'),
     click.option('--stable-days', type=click.INT,
                  help='Days in testing required to push to stable'),
-    click.option('--autokarma', is_flag=True, help='Enable karma automatism'),
+    click.option('--autokarma/--no-autokarma', default=None,
+                 help='Enable/Disable karma automatism'),
     click.option('--stable-karma', type=click.INT, help='Stable karma threshold'),
     click.option('--unstable-karma', type=click.INT, help='Unstable karma threshold'),
     click.option('--requirements',
@@ -141,9 +144,6 @@ new_edit_options = [
                  type=click.Choice(constants.SUGGEST_TYPES)),
     click.option('--display-name',
                  help='The name of the update', default=None),
-    click.option('--from-tag', help='Use builds from a Koji tag instead of specifying '
-                                    'them individually.',
-                 is_flag=True),
     staging_option]
 
 
@@ -401,6 +401,8 @@ def require_severity_for_security_update(type: str, severity: str):
 @click.option('--type', default='bugfix', help='Update type', required=True,
               type=click.Choice(constants.UPDATE_TYPES))
 @add_options(new_edit_options)
+@click.option('--from-tag', is_flag=True,
+              help='Use builds from a Koji tag instead of specifying them individually')
 @click.argument('builds_or_tag')
 @click.option('--file', help='A text file containing all the update details')
 @handle_errors
@@ -412,8 +414,8 @@ def new(url: str, id_provider: str, client_id: str, debug: bool, **kwargs):
     """
     Create a new update.
 
-    BUILDS: a comma separated list of Builds to be added to the update
-    (e.g. 0ad-0.0.21-4.fc26,2ping-3.2.1-4.fc26)
+    BUILDS_OR_TAG: a comma separated list of Builds to be added to the update
+    (e.g. 0ad-0.0.21-4.fc26,2ping-3.2.1-4.fc26) or a single side-tag name
     """
     # Developer Docs
     """
@@ -429,6 +431,12 @@ def new(url: str, id_provider: str, client_id: str, debug: bool, **kwargs):
     client = bindings.BodhiClient(
         base_url=url, client_id=client_id, id_provider=id_provider, staging=kwargs['staging']
     )
+
+    # Because some flag options are common between new and edit, we cannot set the default
+    # to be a boolean, instead we set them here
+    for option in ['close_bugs', 'autotime', 'autokarma']:
+        if kwargs[option] is None:
+            kwargs[option] = False
 
     # Because bodhi.server.services.updates expects from_tag to be string
     # copy builds to from_tag and remove builds
@@ -531,37 +539,30 @@ def edit(url: str, id_provider: str, client_id: str, debug: bool, **kwargs):
 
         # Convert list of 'Bug' instances in DB to comma separated bug_ids for parsing.
         former_update = resp['updates'][0].copy()
+
+        # If these flags are not set by the user we load values from the existing update
+        for option in ['close_bugs', 'autotime', 'autokarma']:
+            if kwargs[option] is None:
+                kwargs[option] = former_update[option]
+
         if not kwargs['bugs']:
             kwargs['bugs'] = ",".join([str(bug['bug_id']) for bug in former_update['bugs']])
             former_update.pop('bugs', None)
 
         kwargs['builds'] = [b['nvr'] for b in former_update['builds']]
         kwargs['edited'] = former_update['alias']
-        # Because bodhi.server.services.updates expects from_tag to be string
-        # copy builds to from_tag and remove builds
-        if kwargs['from_tag']:
-            if not former_update.get('from_tag', None):
+
+        if former_update.get('from_tag', None):
+            # The build list is always refreshed from the side-tag by validate_from_tag()
+            if (kwargs['addbuilds'] or kwargs['removebuilds']):
                 click.echo(
-                    "ERROR: This update was not created from a tag."
-                    " Please remove --from_tag and try again.", err=True
-                )
-                sys.exit(1)
-            if kwargs['addbuilds'] or kwargs['removebuilds']:
-                click.echo(
-                    "ERROR: You have to use the web interface to update"
-                    " builds in a side-tag update.", err=True
+                    "ERROR: The --addbuilds and --removebuilds options"
+                    " cannot be used with a side-tag update.", err=True
                 )
                 sys.exit(1)
             kwargs['from_tag'] = former_update['from_tag']
             del kwargs['builds']
         else:
-            if former_update.get('from_tag', None):
-                click.echo(
-                    "ERROR: This update was created from a side-tag."
-                    " Please add --from_tag and try again.", err=True
-                )
-                sys.exit(1)
-            kwargs.pop('from_tag')
             if kwargs['addbuilds']:
                 for build in kwargs['addbuilds'].split(','):
                     if build not in kwargs['builds']:
@@ -569,6 +570,7 @@ def edit(url: str, id_provider: str, client_id: str, debug: bool, **kwargs):
             if kwargs['removebuilds']:
                 for build in kwargs['removebuilds'].split(','):
                     kwargs['builds'].remove(build)
+
         del kwargs['addbuilds']
         del kwargs['removebuilds']
 
