@@ -49,6 +49,7 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import backref, class_mapper, relationship, validates
 from sqlalchemy.orm.base import NEVER_SET
 from sqlalchemy.orm.exc import NoResultFound
@@ -76,10 +77,12 @@ from bodhi.server.util import avatar as get_avatar
 from bodhi.server.util import (
     build_evr,
     get_critpath_components,
+    get_grouped_critpath_components,
     get_rpm_header,
     header,
     pagure_api_get,
     tokenize,
+    build_names_by_type,
 )
 
 
@@ -610,8 +613,6 @@ class UpdateStatus(DeclEnum):
         stable (EnumSymbol): The update is in the stable repository.
         unpushed (EnumSymbol): The update had been in a testing repository, but has been removed.
         obsolete (EnumSymbol): The update has been obsoleted by another update.
-        side_tag_active (EnumSymbol): The update's side tag is currently active.
-        side_tag_expired (EnumSymbol): The update's side tag has expired.
     """
 
     pending = 'pending', 'pending'
@@ -619,8 +620,6 @@ class UpdateStatus(DeclEnum):
     stable = 'stable', 'stable'
     unpushed = 'unpushed', 'unpushed'
     obsolete = 'obsolete', 'obsolete'
-    side_tag_active = 'side_tag_active', 'Side tag active'
-    side_tag_expired = 'side_tag_expired', 'Side tag expired'
 
 
 class TestGatingStatus(DeclEnum):
@@ -1883,12 +1882,15 @@ class Update(Base):
             :class:`Package`. Critical path packages are packages that are required for
             basic functionality. For example, the kernel :class:`RpmPackage` is a critical
             path package.
+        critpath_groups (str): Space-separated list of critical path groups the package(s)
+            in this update are members of. More detailed version of critpath. Empty string
+            means "no groups" (same as critpath=False); None/null means "feature not supported"
+            (i.e. the configured critpath.type doesn't give grouped critpath info).
         close_bugs (bool): Indicates whether the Bugzilla bugs that this update is related
             to should be closed automatically when the update is pushed to stable.
         date_submitted (DateTime): The date that the update was created.
         date_modified (DateTime): The date the update was last modified or ``None``.
         date_approved (DateTime): The date the update was approved or ``None``.
-        date_pushed (DateTime): The date the update was pushed or ``None``.
         date_testing (DateTime): The date the update was placed into the testing repository
             or ``None``.
         date_stable (DateTime): The date the update was placed into the stable repository or
@@ -1914,7 +1916,8 @@ class Update(Base):
 
     __tablename__ = 'updates'
     __exclude_columns__ = ('id', 'user_id', 'release_id')
-    __include_extras__ = ('meets_testing_requirements', 'url', 'title', 'version_hash')
+    __include_extras__ = ('date_pushed', 'meets_testing_requirements', 'url', 'title',
+                          'version_hash')
     __get_by__ = ('alias',)
 
     autokarma = Column(Boolean, default=True, nullable=False)
@@ -1942,6 +1945,7 @@ class Update(Base):
     locked = Column(Boolean, default=False)
     pushed = Column(Boolean, default=False)
     critpath = Column(Boolean, default=False)
+    critpath_groups = Column(UnicodeText, nullable=True)
 
     # Bug settings
     close_bugs = Column(Boolean, default=True)
@@ -1950,7 +1954,6 @@ class Update(Base):
     date_submitted = Column(DateTime, default=datetime.utcnow, index=True)
     date_modified = Column(DateTime)
     date_approved = Column(DateTime)
-    date_pushed = Column(DateTime)
     date_testing = Column(DateTime)
     date_stable = Column(DateTime)
 
@@ -2025,16 +2028,6 @@ class Update(Base):
         builds = " ".join(sorted(nvrs))
         return hashlib.sha1(str(builds).encode('utf-8')).hexdigest()
 
-    @property
-    def side_tag_locked(self):
-        """
-        Return the lock state of the side tag.
-
-        Returns:
-            bool: True if sidetag is locked, False otherwise.
-        """
-        return self.status == UpdateStatus.side_tag_active and self.request is not None
-
     # WARNING: consumers/composer.py assumes that this validation is performed!
     @validates('builds')
     def validate_builds(self, key, build):
@@ -2083,6 +2076,22 @@ class Update(Base):
         """
         if self.locked and self.compose is not None:
             return self.compose.date_created
+
+    @hybrid_property
+    def date_pushed(self):
+        """
+        Return the time that this update was pushed in repository.
+
+        Returns:
+            datetime.datetime or None: The most recent between date_testing and date_stable, or
+                None if the update was never pushed in any repo.
+        """
+        if self.date_stable:
+            return self.date_stable
+        elif self.date_testing:
+            return self.date_testing
+        else:
+            return None
 
     @property
     def mandatory_days_in_testing(self):
@@ -2162,6 +2171,31 @@ class Update(Base):
         return comments_since_karma_reset
 
     @staticmethod
+    def get_critpath_groups(builds, release_branch):
+        """
+        Determine which (if any) critpath groups the builds passed in are part of.
+
+        Args:
+            builds (list): :class:`Builds <Build>` to be considered.
+            release_branch (str): The name of the git branch associated to the release,
+                such as "f25" or "master".
+        Returns:
+            str: A space-separated list of the critpath groups. Will be empty if none.
+        Raises:
+            ValueError: If the configured critpath.type does not list by group.
+        """
+        components = build_names_by_type(builds)
+        groups = []
+
+        for ptype in components:
+            groups.extend(
+                get_grouped_critpath_components(
+                    release_branch, ptype, frozenset(components[ptype])
+                )
+            )
+        return " ".join(groups)
+
+    @staticmethod
     def contains_critpath_component(builds, release_branch):
         """
         Determine if there is a critpath component in the builds passed in.
@@ -2175,12 +2209,7 @@ class Update(Base):
         Raises:
             RuntimeError: If the PDC did not give us a 200 code.
         """
-        components = defaultdict(list)
-        # Get the mess down to a dict of ptype -> [pname]
-        for build in builds:
-            ptype = build.package.type.value
-            pname = build.package.name
-            components[ptype].append(pname)
+        components = build_names_by_type(builds)
 
         for ptype in components:
             if get_critpath_components(release_branch, ptype, frozenset(components[ptype])):
@@ -2215,13 +2244,12 @@ class Update(Base):
         subjects = self.greenwave_subject
         data = []
         while count < len(subjects):
-            for context in self._greenwave_decision_contexts:
-                data.append({
-                    'product_version': self.product_version,
-                    'decision_context': context,
-                    'subject': subjects[count:count + batch_size],
-                    'verbose': verbose,
-                })
+            data.append({
+                'product_version': self.product_version,
+                'decision_context': self._greenwave_decision_contexts,
+                'subject': subjects[count:count + batch_size],
+                'verbose': verbose,
+            })
             count += batch_size
         return data
 
@@ -2250,16 +2278,27 @@ class Update(Base):
 
     @property
     def _greenwave_decision_contexts(self):
-        # We retrieve updates going to testing (status=pending) and updates
-        # (status=testing) going to stable.
-        # We also query on different contexts for critpath and non-critpath
-        # updates.
+        """
+        Return greenwave contexts that should be queried for this update.
+
+        The base context depends whether the update is going to
+        testing (status=pending) or to stable (status=testing). We
+        also query on additional contexts for critpath updates. If the
+        critpath type provides grouped information, we query on one
+        additional context per critpath group represented in the
+        update's packages. If it does not, we query on the catch-all
+        additional 'critpath' context.
+        """
         # this is correct if update is already in testing...
         contexts = ["bodhi_update_push_stable"]
         if self.request == UpdateRequest.testing and self.status == UpdateStatus.pending:
             # ...but if it is pending, we want to know if it can go to testing
             contexts = ["bodhi_update_push_testing"]
-        if self.critpath:
+        if self.critpath_groups:
+            ocontext = contexts[0]
+            for group in self.critpath_groups.split(" "):
+                contexts.insert(0, f"{ocontext}_{group}_critpath")
+        elif self.critpath:
             contexts.insert(0, contexts[0] + "_critpath")
         return contexts
 
@@ -2416,8 +2455,14 @@ class Update(Base):
         user = User.get(request.user.name)
         data['user'] = user
         caveats = []
-        data['critpath'] = cls.contains_critpath_component(
-            data['builds'], data['release'].branch)
+        try:
+            data['critpath_groups'] = cls.get_critpath_groups(
+                data['builds'], data['release'].branch)
+            data['critpath'] = bool(data['critpath_groups'])
+        except ValueError:
+            data['critpath_groups'] = None
+            data['critpath'] = cls.contains_critpath_component(
+                data['builds'], data['release'].branch)
 
         # Be sure to not add an empty string as alternative title
         # and strip whitespaces from it
@@ -2446,7 +2491,7 @@ class Update(Base):
                     build.package for build in data['builds']
                 ] if pkg.requirements], []))))
 
-        del(data['edited'])
+        del data['edited']
 
         req = data.pop("request", UpdateRequest.testing)
 
@@ -2523,7 +2568,7 @@ class Update(Base):
         db = request.db
         buildinfo = request.buildinfo
         up = db.query(Update).filter_by(alias=data['edited']).first()
-        del(data['edited'])
+        del data['edited']
 
         caveats = []
         edited_builds = [build.nvr for build in up.builds]
@@ -2583,10 +2628,16 @@ class Update(Base):
                     # an override
                     db.delete(b)
 
-        data['critpath'] = cls.contains_critpath_component(
-            up.builds, up.release.branch)
+        try:
+            data['critpath_groups'] = cls.get_critpath_groups(
+                up.builds, up.release.branch)
+            data['critpath'] = bool(data['critpath_groups'])
+        except ValueError:
+            data['critpath_groups'] = None
+            data['critpath'] = cls.contains_critpath_component(
+                up.builds, up.release.branch)
 
-        del(data['builds'])
+        del data['builds']
 
         # Comment on the update with details of added/removed builds
         # .. enumerate the builds in markdown format so they're pretty.
@@ -2612,7 +2663,11 @@ class Update(Base):
             data['karma_critipath'] = 0
             up.date_testing = None
 
-            if up.status != UpdateStatus.pending:
+            if (
+                (up.status != UpdateStatus.pending and not up.from_tag)
+                or (up.status != UpdateStatus.pending and up.from_tag
+                    and up.release.composed_by_bodhi)
+            ):
                 # Remove all koji tags and change the status back to pending
                 up.unpush(db)
                 caveats.append({
@@ -2642,7 +2697,7 @@ class Update(Base):
                 tag_update_builds_task.delay(tag=tag, builds=builds_to_tag)
 
         new_bugs = up.update_bugs(data['bugs'], db)
-        del(data['bugs'])
+        del data['bugs']
 
         req = data.pop("request", None)
         if req is not None and up.release.composed_by_bodhi:
@@ -3043,6 +3098,15 @@ class Update(Base):
                 update=self, agent=username)))
             return
 
+        # Disable pushing updates from pending directly to stable when the release is frozen
+        if (
+            action == UpdateRequest.stable and self.status == UpdateStatus.pending
+            and self.release.state == ReleaseState.frozen
+        ):
+            raise BodhiException(
+                'The release of this update is frozen and the update has not yet been '
+                'pushed to testing. It is currently not possible to push it to stable.')
+
         # Disable pushing critical path updates for pending releases directly to stable
         if action == UpdateRequest.stable and self.critpath:
             if config.get('critpath.num_admin_approvals') is not None:
@@ -3189,6 +3253,7 @@ class Update(Base):
             data = {
                 'subject': requirement['item'],
                 'testcase': requirement['testcase'],
+                'scenario': requirement.get('scenario', None),
                 'product_version': self.product_version,
                 'waived': True,
                 'username': username,
@@ -3805,6 +3870,9 @@ class Update(Base):
         # Return if the status of the update is not in testing or pending
         if self.status not in (UpdateStatus.testing, UpdateStatus.pending):
             return
+        # Also return if the status of the update is not in testing and the release is frozen
+        if self.status != UpdateStatus.testing and self.release.state == ReleaseState.frozen:
+            return
         # If an update receives negative karma disable autopush
         # exclude rawhide updates see #4566
         if (self.autokarma or self.autotime) and self._composite_karma[1] != 0 and self.status is \
@@ -3821,10 +3889,10 @@ class Update(Base):
                 log.info("%s reached stable karma threshold, but does not meet gating "
                          "requirements", self.alias)
                 return
+            self.date_approved = datetime.utcnow()
             if self.autokarma:
                 log.info("Automatically marking %s as stable", self.alias)
                 self.set_request(db, UpdateRequest.stable, agent)
-                self.date_pushed = None
                 notifications.publish(update_schemas.UpdateKarmaThresholdV1.from_dict(
                     dict(update=self, status='stable')))
             else:

@@ -41,9 +41,9 @@ except ImportError:  # pragma: no cover
     # dnf is not available on EL 7.
     dnf = None  # pragma: no cover
 from munch import munchify
-from requests.exceptions import RequestException, ConnectionError
-import requests
+from requests.exceptions import ConnectionError, RequestException
 import koji
+import requests
 
 from .constants import (
     BASE_URL,
@@ -177,6 +177,7 @@ class BodhiClient:
         client_id: str = CLIENT_ID,
         id_provider: str = IDP,
         staging: bool = False,
+        oidc_storage_path: typing.Optional[str] = None,
     ):
         """
         Initialize the Bodhi client.
@@ -186,6 +187,7 @@ class BodhiClient:
                       ```staging``` is True.
             client_id: The OpenID Connect Client ID.
             staging: If True, use the staging server. If False, use base_url.
+            oidc_storage_path: Path to a file were OIDC credentials are stored
         """
         if staging:
             base_url = STG_BASE_URL
@@ -196,15 +198,17 @@ class BodhiClient:
             base_url = base_url + '/'
         self.base_url = base_url
         self.csrf_token = ''
+        self.oidc_storage_path = (
+            oidc_storage_path or os.path.join(os.environ["HOME"], ".config", "bodhi", "client.json")
+        )
         self._build_oidc_client(client_id, id_provider)
 
     def _build_oidc_client(self, client_id, id_provider):
-        storage_path = os.path.join(os.environ["HOME"], ".config", "bodhi", "client.json")
         self.oidc = OIDCClient(
             client_id,
             SCOPE,
             id_provider.rstrip("/"),
-            storage=JSONStorage(storage_path),
+            storage=JSONStorage(self.oidc_storage_path),
         )
 
     def send_request(self, url, verb="GET", **kwargs):
@@ -233,7 +237,7 @@ class BodhiClient:
 
     def ensure_auth(self):
         """Make sure we are authenticated."""
-        self.oidc.ensure_auth()
+        self.oidc.ensure_auth(use_kerberos=True)
         if not self.oidc.has_cookie("auth_tkt", domain=urlparse(self.base_url).hostname):
             while True:
                 resp = self.oidc.request("GET", f"{self.base_url}oidc/login-token")
@@ -241,7 +245,7 @@ class BodhiClient:
                     break
                 if resp.status_code == 401:
                     self.clear_auth()
-                    self.oidc.login()
+                    self.oidc.login(use_kerberos=True)
                 else:
                     resp.raise_for_status()
 
@@ -442,7 +446,7 @@ class BodhiClient:
         # bodhi1 compat
         if 'limit' in kwargs:
             kwargs['rows_per_page'] = kwargs['limit']
-            del(kwargs['limit'])
+            del kwargs['limit']
         # 'mine' may be in kwargs, but set False
         if kwargs.get('mine'):
             if self.username is None:
@@ -457,16 +461,16 @@ class BodhiClient:
                 kwargs['updateid'] = kwargs['package']
             else:
                 kwargs['packages'] = kwargs['package']
-            del(kwargs['package'])
+            del kwargs['package']
         if 'release' in kwargs:
             if isinstance(kwargs['release'], list):
                 kwargs['releases'] = kwargs['release']
             else:
                 kwargs['releases'] = [kwargs['release']]
-            del(kwargs['release'])
+            del kwargs['release']
         if 'type_' in kwargs:
             kwargs['type'] = kwargs['type_']
-            del(kwargs['type_'])
+            del kwargs['type_']
         # Old Bodhi CLI set bugs default to "", but new Bodhi API
         # checks for 'if bugs is not None', not 'if not bugs'
         if 'bugs' in kwargs and kwargs['bugs'] == '':

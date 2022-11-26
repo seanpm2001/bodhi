@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "bodhi-client"
-version = "6.0.1"
+version = "7.0.0"
 description = "Bodhi client"
 authors = ["Fedora Infrastructure team"]
 maintainers = ["Fedora Infrastructure Team <infrastructure@lists.fedoraproject.org>"]
@@ -19,6 +19,7 @@ classifiers = [
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
     "Topic :: System :: Software Distribution"
 ]
 packages = [
@@ -28,6 +29,7 @@ packages = [
 include = [
     { path = "docs", format = "sdist" },
     { path = "bodhi-client.bash", format = "sdist" },
+    { path = "COPYING", format = "sdist" },
 ]
 exclude = ["docs/_build"]
 
@@ -39,11 +41,12 @@ pytest-mock = ">=3.5.1"
 diff-cover = ">=4.2.1"
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = ">=3.8"
 click = ">=7.1.2"
-koji = "^1.27.1"
+koji = ">=1.27.1"
 authlib = ">=0.15.4"
-munch = "^2.5.0"
+munch = ">=2.5.0"
+requests-kerberos = ">=0.12"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

@@ -67,7 +67,7 @@ class TestBodhiClientBase(BodhiClientTestCase):
             "CLIENT_ID",
             constants.SCOPE,
             "https://id.example.com",
-            storage=storage.return_value
+            storage=storage.return_value,
         )
         storage.assert_called_with(os.path.expanduser("~/.config/bodhi/client.json"))
         assert client.csrf_token == ''
@@ -106,7 +106,7 @@ class TestBodhiClientAuth(BodhiClientTestCase):
 
         client.ensure_auth()
 
-        self.oidc.ensure_auth.assert_called_once_with()
+        self.oidc.ensure_auth.assert_called_once_with(use_kerberos=True)
         self.oidc.request.assert_called_once_with(
             "GET", "http://example.com/bodhi/oidc/login-token"
         )
@@ -161,7 +161,7 @@ class TestBodhiClientAuth(BodhiClientTestCase):
         client.send_request("somewhere", "GET", auth=True)
 
         self.oidc.request.assert_called_once_with("GET", "http://example.com/bodhi/somewhere")
-        self.oidc.ensure_auth.assert_called_once_with()
+        self.oidc.ensure_auth.assert_called_once_with(use_kerberos=True)
 
     def test_send_request_error(self, mocker):
         response = build_response(500, "/url", "error")
@@ -1277,7 +1277,7 @@ class TestUpdateStr(BodhiClientTestCase):
 
         text = client.update_str(client_test_data.EXAMPLE_UPDATE_MUNCH)
 
-        assert(
+        assert (
             '     Waivers: netvor - 2018-06-29 00:20:20\n'
             '              This is fine. See BZ#1566485\n'
             '              build: slop-7.4-1.fc28\n'

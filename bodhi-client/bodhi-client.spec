@@ -1,6 +1,6 @@
 # Created by pyp2rpm-3.3.7
 %global pypi_name bodhi-client
-%global pypi_version 6.0.1
+%global pypi_version 7.0.0
 
 Name:           %{pypi_name}
 Version:        %{pypi_version}
@@ -20,11 +20,16 @@ BuildRequires:  python3-pytest-cov
 BuildRequires:  python3-pytest-mock
 BuildRequires:  python3-sphinx
 
+Requires: koji
+
 Obsoletes: python3-bodhi-client <= 5.7.5
+# Replace the bodhi metapackage
+Obsoletes: bodhi <= 5.7.5
 
 %py_provides python3-bodhi-client
 
 %description
+Command-line client for Bodhi, Fedora's update gating system.
 
 %prep
 %autosetup -n %{pypi_name}-%{pypi_version}
@@ -58,6 +63,9 @@ install -pm0644 bodhi-client.bash %{buildroot}%{_sysconfdir}/bash_completion.d/b
 %config(noreplace) %{_sysconfdir}/bash_completion.d/bodhi-client.bash
 
 %changelog
+* Sat Nov 26 2022 Mattia Verga <mattia.verga@fedoraproject.org> - 7.0.0-1
+- Update to 7.0.0.
+
 * Fri Apr 08 2022 Aurelien Bompard <abompard@fedoraproject.org> - 6.0.0-1
 - Update to 6.0.0.
 

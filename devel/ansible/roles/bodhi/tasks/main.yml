@@ -43,8 +43,10 @@
       - python3-devel
       - python3-diff-cover
       - python3-dogpile-cache
+      - python3-faker
       - python3-flake8
       - python3-flake8-import-order
+      - python3-freeipa
       - python3-ipdb
       - python3-koji
       - python3-librepo
@@ -151,14 +153,6 @@
   args:
     creates: /srv/venv/bin/python
 
-# Setuptools update to ensure the celery >=5.2.3 works well
-- name: Update python3-setuptools in the venv
-  command: poetry update setuptools
-  become: yes
-  become_user: vagrant
-  args:
-    chdir: /home/vagrant/bodhi/bodhi-server
-
 - name: Install bodhi with poetry
   command: poetry install
   become: yes
@@ -178,15 +172,26 @@
       dest: /tmp/bodhi2.dump.xz
       timeout: 1000
 
-- shell: xzcat /tmp/bodhi2.dump.xz | runuser -l postgres -c 'psql bodhi2' && touch /home/vagrant/.db-imported
+- name: Import database
+  shell: xzcat /tmp/bodhi2.dump.xz | runuser -l postgres -c 'psql bodhi2' && touch /home/vagrant/.db-imported
   args:
       creates: /home/vagrant/.db-imported
 
-- command: cp /home/vagrant/bodhi/devel/development.ini.example /home/vagrant/development.ini
+- name: Copy bodhi config file to vagrant home
+  command: cp /home/vagrant/bodhi/devel/development.ini.example /home/vagrant/development.ini
   args:
       creates: /home/vagrant/development.ini
 
-- name: adjust the paths in the config
+- name: Set bodhi config path in system env
+  lineinfile:
+    path: /etc/environment
+    state: present
+    regexp: "^{{ item.key }}="
+    line: "{{ item.key }}={{ item.value}}"
+  with_items:
+    - {key: "BODHI_CONFIG", value: "/home/vagrant/development.ini"}
+
+- name: Adjust settings in the config
   ini_file:
     path: /home/vagrant/development.ini
     section: app:main
@@ -195,10 +200,7 @@
   loop:
     - {key: "celery_config", value: "%(here)s/bodhi/bodhi-server/celeryconfig.py"}
     - {key: "pungi.basepath", value: "%(here)s/bodhi/devel/ci/integration/bodhi/"}
-
-- name: Change development.ini to make bodhi use the staging infrastructure
-  import_tasks: configure_stg.yml
-  when: (staging_fas is defined) and use_staging_infra
+    - {key: "smtp_server", value: "tinystage.tinystage.test:1025"}
 
 - name: Creates /etc/bodhi directory
   file:
@@ -213,7 +215,7 @@
       chdir: /home/vagrant/bodhi/bodhi-server
   environment:
       VIRTUAL_ENV: /srv/venv
-
+      BODHI_CONFIG: /home/vagrant/development.ini
 
 - name: Install the systemd unit files
   copy:
@@ -332,6 +334,20 @@
     insertbefore: "</VirtualHost>"
     regexp: "^RequestHeader set X-Forwarded-Proto https$"
     line: RequestHeader set X-Forwarded-Proto https
+
+- name: Copy the create users and groups script
+  template:
+      src: create-freeipa-users-grps.py
+      dest: /home/vagrant/create-freeipa-users-grps.py
+      mode: 0644
+      owner: vagrant
+      group: vagrant
+
+- name: Add development users to tinystage
+  shell: python create-freeipa-users-grps.py > users-creation.log
+  args:
+    chdir: /home/vagrant/
+    creates: users-creation.log
 
 - name: Setup httpd
   copy:

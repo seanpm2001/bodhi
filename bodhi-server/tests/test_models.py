@@ -656,7 +656,7 @@ class TestCompose(BasePyTestCase):
         # If we remove the extra keys from normal_json, the remaining dictionary should be the same
         # as j.
         for k in set(normal_json.keys()) - set(j.keys()):
-            del(normal_json[k])
+            del normal_json[k]
         assert j == normal_json
 
     def test___lt___false_fallthrough(self):
@@ -2502,7 +2502,7 @@ class TestUpdateUpdateTestGatingStatus(BasePyTestCase):
         assert sleep.mock_calls == [mock.call(1), mock.call(1), mock.call(1)]
         expected_post = mock.call(
             'https://greenwave-web-greenwave.app.os.fedoraproject.org/api/v1.0/decision',
-            data={"product_version": "fedora-17", "decision_context": "bodhi_update_push_testing",
+            data={"product_version": "fedora-17", "decision_context": ["bodhi_update_push_testing"],
                   "subject": [{"item": f"{update.builds[0].nvr}", "type": "koji_build"},
                               {"item": f"{update.alias}", "type": "bodhi_update"}],
                   "verbose": False},
@@ -2545,7 +2545,7 @@ class TestUpdateUpdateTestGatingStatus(BasePyTestCase):
         assert sleep.mock_calls == []
         expected_post = mock.call(
             'https://greenwave-web-greenwave.app.os.fedoraproject.org/api/v1.0/decision',
-            data={"product_version": "fedora-17", "decision_context": "bodhi_update_push_testing",
+            data={"product_version": "fedora-17", "decision_context": ["bodhi_update_push_testing"],
                   "subject": [{"item": f"{update.builds[0].nvr}", "type": "koji_build"},
                               {"item": f"{update.alias}", "type": "bodhi_update"}],
                   "verbose": False},
@@ -3042,7 +3042,7 @@ class TestUpdate(ModelTest):
                 [
                     {
                         'product_version': 'fedora-11',
-                        'decision_context': 'bodhi_update_push_testing',
+                        'decision_context': ['bodhi_update_push_testing'],
                         'verbose': False,
                         'subject': [
                             {'item': 'TurboGears-1.0.8-3.fc11', 'type': 'koji_build'},
@@ -3060,7 +3060,7 @@ class TestUpdate(ModelTest):
                 [
                     {
                         'product_version': 'fedora-11',
-                        'decision_context': 'bodhi_update_push_testing',
+                        'decision_context': ['bodhi_update_push_testing'],
                         'verbose': True,
                         'subject': [
                             {'item': 'TurboGears-1.0.8-3.fc11', 'type': 'koji_build'},
@@ -3068,7 +3068,7 @@ class TestUpdate(ModelTest):
                     },
                     {
                         'product_version': 'fedora-11',
-                        'decision_context': 'bodhi_update_push_testing',
+                        'decision_context': ['bodhi_update_push_testing'],
                         'verbose': True,
                         'subject': [
                             {'item': self.obj.alias, 'type': 'bodhi_update'},
@@ -3083,13 +3083,17 @@ class TestUpdate(ModelTest):
         for critpath update with multiple batches.
         """
         with mock.patch.dict('bodhi.server.models.config', {'greenwave_batch_size': 1}):
-            self.obj.critpath = True
+            self.obj.critpath_groups = "core critical-path-apps"
             assert self.obj.greenwave_subject_batch_size == 1
             assert self.obj.greenwave_request_batches(verbose=True) == (
                 [
                     {
                         'product_version': 'fedora-11',
-                        'decision_context': 'bodhi_update_push_testing_critpath',
+                        'decision_context': [
+                            'bodhi_update_push_testing_critical-path-apps_critpath',
+                            'bodhi_update_push_testing_core_critpath',
+                            'bodhi_update_push_testing'
+                        ],
                         'verbose': True,
                         'subject': [
                             {'item': 'TurboGears-1.0.8-3.fc11', 'type': 'koji_build'},
@@ -3097,29 +3101,16 @@ class TestUpdate(ModelTest):
                     },
                     {
                         'product_version': 'fedora-11',
-                        'decision_context': 'bodhi_update_push_testing',
-                        'verbose': True,
-                        'subject': [
-                            {'item': 'TurboGears-1.0.8-3.fc11', 'type': 'koji_build'},
-                        ]
-                    },
-                    {
-                        'product_version': 'fedora-11',
-                        'decision_context': 'bodhi_update_push_testing_critpath',
+                        'decision_context': [
+                            'bodhi_update_push_testing_critical-path-apps_critpath',
+                            'bodhi_update_push_testing_core_critpath',
+                            'bodhi_update_push_testing'
+                        ],
                         'verbose': True,
                         'subject': [
                             {'item': self.obj.alias, 'type': 'bodhi_update'},
                         ]
-                    },
-                    {
-                        'product_version': 'fedora-11',
-                        'decision_context': 'bodhi_update_push_testing',
-                        'verbose': True,
-                        'subject': [
-                            {'item': self.obj.alias, 'type': 'bodhi_update'},
-                        ]
-                    },
-
+                    }
                 ]
             )
 
@@ -3132,7 +3123,7 @@ class TestUpdate(ModelTest):
             [
                 {
                     'product_version': 'fedora-11',
-                    'decision_context': 'bodhi_update_push_testing',
+                    'decision_context': ['bodhi_update_push_testing'],
                     'verbose': True,
                     'subject': [
                         {'item': 'TurboGears-1.0.8-3.fc11', 'type': 'koji_build'},
@@ -3281,20 +3272,6 @@ class TestUpdate(ModelTest):
 
         assert self.obj.requested_tag == self.obj.release.candidate_tag
 
-    def test_side_tag_locked_false(self):
-        """Test the side_tag_locked property when it is false."""
-        self.obj.status = model.UpdateStatus.side_tag_active
-        self.obj.request = None
-
-        assert not self.obj.side_tag_locked
-
-    def test_side_tag_locked_true(self):
-        """Test the side_tag_locked property when it is true."""
-        self.obj.status = model.UpdateStatus.side_tag_active
-        self.obj.request = model.UpdateRequest.stable
-
-        assert self.obj.side_tag_locked
-
     @mock.patch('bodhi.server.models.bugs.bugtracker.close')
     @mock.patch('bodhi.server.models.bugs.bugtracker.comment')
     def test_modify_bugs_stable_close(self, comment, close):
@@ -3431,6 +3408,27 @@ class TestUpdate(ModelTest):
             override_tag='dist-fc25-override',
             branch='fc25', version='25')
         assert not update.contains_critpath_component(update.builds, update.release.name)
+
+    def test_critpath_groups(self, critpath_json_config):
+        (tempdir, _) = critpath_json_config
+        config.update({
+            'critpath.type': 'json',
+            'critpath.jsonpath': tempdir
+        })
+        update = self.get_update()
+        update.release = model.Release(
+            name='F36', long_name='Fedora 36',
+            id_prefix='FEDORA', dist_tag='f36',
+            stable_tag='f36-updates',
+            testing_tag='f36-updates-testing',
+            candidate_tag='f36-updates-candidate',
+            pending_signing_tag='f36-updates-testing-signing',
+            pending_testing_tag='f36-updates-testing-pending',
+            pending_stable_tag='f36-updates-pending',
+            override_tag='f36-override',
+            branch='f36', version='36')
+        groups = update.get_critpath_groups(update.builds, update.release.branch)
+        assert groups == "core"
 
     def test_unpush_build(self):
         assert len(self.obj.builds) == 1
@@ -3738,6 +3736,22 @@ class TestUpdate(ModelTest):
         assert self.obj.request is None
         assert self.obj.status == UpdateStatus.testing
 
+    def test_check_karma_thresholds_frozen_release(self):
+        """check_karma_thresholds should no-op on an update those
+        release is in frozen state.
+        """
+        self.obj.status = UpdateStatus.pending
+        self.obj.request = UpdateRequest.testing
+        self.obj.autokarma = True
+        self.obj.comment(self.db, "foo", 1, 'biz')
+        self.obj.stable_karma = 1
+        self.obj.release.state = ReleaseState.frozen
+
+        self.obj.check_karma_thresholds(self.db, 'bowlofeggs')
+
+        assert self.obj.request is UpdateRequest.testing
+        assert self.obj.status == UpdateStatus.pending
+
     def test_critpath_approved_no_release_requirements(self):
         """critpath_approved() should use the broad requirements if the release doesn't have any."""
         self.obj.critpath = True
@@ -3998,6 +4012,32 @@ class TestUpdate(ModelTest):
         self.obj.set_request(self.db, UpdateRequest.stable, req.user.name)
 
         assert self.obj.request == UpdateRequest.stable
+        assert self.obj.status == UpdateStatus.pending
+
+        self.obj = mock.Mock()
+        self.obj.remove_tag(self.obj.release.pending_testing_tag)
+        self.obj.remove_tag.assert_called_once_with(self.obj.release.pending_testing_tag)
+
+    def test_set_request_pending_stable_frozen_release(self):
+        """
+        Ensure that it's not possible to submit an update to stable if it is still pending and
+        the release is frozen.
+        """
+        req = DummyRequest(user=DummyUser())
+        req.errors = cornice.Errors()
+        req.koji = buildsys.get_session()
+        assert self.obj.status == UpdateStatus.pending
+        self.obj.stable_karma = 1
+        self.obj.release.state = ReleaseState.frozen
+
+        with pytest.raises(BodhiException) as exc:
+            self.obj.set_request(self.db, UpdateRequest.stable, req.user.name)
+        assert str(exc.value) == (
+            'The release of this update is frozen and the update has not yet been '
+            'pushed to testing. It is currently not possible to push it to stable.'
+        )
+
+        assert self.obj.request is UpdateRequest.testing
         assert self.obj.status == UpdateStatus.pending
 
         self.obj = mock.Mock()
@@ -4809,6 +4849,7 @@ class TestUpdate(ModelTest):
                 "username": "foo", "comment": "this is not true!", "waived": True,
                 "product_version": "{}".format(self.obj.product_version),
                 "testcase": "{}".format(test),
+                "scenario": None,
                 "subject": {"item": "bodhi-3.6.0-1.fc28", "type": "koji_build"}}
             expected_calls.append(mock.call(
                 '{}/waivers/'.format(config.get('waiverdb_api_url')),
@@ -4847,6 +4888,7 @@ class TestUpdate(ModelTest):
                     'item': {"item": "%s" % update.builds[0].nvr, "type": "koji_build"},
                     'result_id': "123",
                     'testcase': 'dist.depcheck',
+                    'scenario': 'kde',
                     'type': 'test-result-failed'
                 }
             ]
@@ -4860,6 +4902,7 @@ class TestUpdate(ModelTest):
         wdata = {
             'subject': {"item": "%s" % update.builds[0].nvr, "type": "koji_build"},
             'testcase': 'dist.depcheck',
+            'scenario': 'kde',
             'product_version': update.product_version,
             'waived': True,
             'username': 'foo',
