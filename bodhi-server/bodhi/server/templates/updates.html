@@ -8,11 +8,10 @@ def inherit(context):
 
 <%namespace name="fragments" file="fragments.html"/>
 
-
 % if chrome:
 <%block name="css">
 ${parent.css()}
-<link href="${request.static_url('bodhi.server:static/vendor/selectize/selectize.bootstrap3-0.12.3.css') }" rel="stylesheet" />
+<link href="${request.static_url('bodhi.server:static/vendor/selectize/selectize.bootstrap5-0.15.2.css') }" rel="stylesheet" />
 <link rel="alternate" type="application/atom+xml" title="New Updates" href="${request.route_url('updates_rss') + '?' + request.query_string}"/>
 </%block>
 <div class="subheader">
@@ -148,7 +147,8 @@ ${parent.css()}
                             % endif
                             >${macrocat[1]}</option>
                           %endfor
-                          % for rstatus in ['current', 'pending', "archived"]:
+                          % for rstatus in ['current', 'pending', 'frozen', 'archived']:
+                            % if len(releases[rstatus]) > 0:
                             <optgroup label="${rstatus}">
                             % for value in releases[rstatus]:
                             <option value="${value['name']}"
@@ -158,6 +158,7 @@ ${parent.css()}
                             >${value['long_name']}</option>
                             % endfor
                             </optgroup>
+                            % endif
                           %endfor
                       </select>
                   </div>
@@ -289,7 +290,7 @@ ${parent.css()}
 % if chrome:
 <%block name="javascript">
 ${parent.javascript()}
-<script src="${request.static_url('bodhi.server:static/vendor/selectize/selectize-0.12.3.min.js')}"></script>
+<script src="${request.static_url('bodhi.server:static/vendor/selectize/selectize-0.15.2.min.js')}"></script>
 <script>
   $(document).ready(function() {
 

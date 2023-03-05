@@ -4,13 +4,13 @@ on:
   push:
     branches:
       - develop
-      - 6.0
       - 7.0
+      - 7.1
   pull_request:
     branches:
       - develop
-      - 6.0
       - 7.0
+      - 7.1
 
 jobs:
   analyze:
@@ -35,6 +35,7 @@ jobs:
         with:
           languages: ${{ matrix.language }}
           queries: +security-and-quality
+          config-file: ./.github/codeql-config.yml
 
       - name: Autobuild
         uses: github/codeql-action/autobuild@v2

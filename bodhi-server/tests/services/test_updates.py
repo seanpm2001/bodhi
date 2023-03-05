@@ -272,6 +272,15 @@ class TestNewUpdate(BasePyTestCase):
     @mock.patch.dict('bodhi.server.validators.config', {'acl_system': 'dummy'})
     @mock.patch(**mock_uuid4_version1)
     @mock.patch(**mock_valid_requirements)
+    def test_update_notes_exceed_maximum(self, *args):
+        update = self.get_update('bodhi-2.1-1.fc17')
+        update['notes'] = 'a' * 10001
+        res = self.app.post_json('/updates/', update, status=400)
+        assert 'Longer than maximum length 10000' in res
+
+    @mock.patch.dict('bodhi.server.validators.config', {'acl_system': 'dummy'})
+    @mock.patch(**mock_uuid4_version1)
+    @mock.patch(**mock_valid_requirements)
     def test_new_rpm_update(self, *args):
         with fml_testing.mock_sends(update_schemas.UpdateRequestTestingV1):
             r = self.app.post_json('/updates/', self.get_update('bodhi-2.0.0-2.fc17'))
@@ -482,7 +491,7 @@ class TestNewUpdate(BasePyTestCase):
 
         resp = self.app.get(f"/updates/{resp.json['alias']}", headers={'Accept': 'text/html'})
 
-        assert re.search(r'https://koji.fedoraproject.org/koji/search\?terms=.*\&amp;'
+        assert re.search(r'https://koji\.fedoraproject\.org/koji/search\?terms=.*\&amp;'
                          r'type=build\&amp;match=exact', str(resp))
 
     @mock.patch(**mock_valid_requirements)
@@ -498,7 +507,7 @@ class TestNewUpdate(BasePyTestCase):
 
         resp = self.app.get(f"/updates/{resp.json['alias']}", headers={'Accept': 'text/html'})
 
-        assert re.search(r'https://koji.fedoraproject.org/koji/search\?terms=.*\&amp;'
+        assert re.search(r'https://koji\.fedoraproject\.org/koji/search\?terms=.*\&amp;'
                          r'type=build\&amp;match=exact', str(resp))
 
     @mock.patch(**mock_valid_requirements)
@@ -514,7 +523,7 @@ class TestNewUpdate(BasePyTestCase):
 
         resp = self.app.get(f"/updates/{resp.json['alias']}", headers={'Accept': 'text/html'})
 
-        assert re.search(r'https://host.org/search\?terms=.*\&amp;type=build\&amp;match=exact',
+        assert re.search(r'https://host\.org/search\?terms=.*\&amp;type=build\&amp;match=exact',
                          str(resp))
 
     @mock.patch.dict('bodhi.server.validators.config', {'acl_system': 'dummy'})
@@ -6056,7 +6065,7 @@ class TestUpdatesService(BasePyTestCase):
 
         assert up['title'] == 'bodhi-2.0.0-3.fc17'
         assert up['karma'] == 0
-        assert up['date_testing'] == None
+        assert up['date_testing'] is None
         update = Update.get(update.alias)
         update.status = UpdateStatus.testing
         self.date_testing = datetime.utcnow() + timedelta(days=7)

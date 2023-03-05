@@ -19,6 +19,7 @@
 
 import datetime
 
+from koji import GenericError
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest, REGISTRY
 from pyramid.exceptions import HTTPBadRequest, HTTPForbidden
 from pyramid.httpexceptions import HTTPMovedPermanently, HTTPUnauthorized
@@ -111,7 +112,7 @@ def get_testing_counts(critpath, security):
 
     if critpath:
         query = query.filter(
-            models.Update.critpath == True)
+            models.Update.critpath.is_(True))
     if security:
         query = query.filter(
             models.Update.type == models.UpdateType.security)
@@ -167,7 +168,11 @@ def _get_sidetags(koji, user=None, contains_builds=False):
     Returns:
         dict: A list of the sidetags information.
     """
-    sidetags = koji.listSideTags(user=user)
+    try:
+        sidetags = koji.listSideTags(user=user)
+    except GenericError:
+        log.info(f"Unable to retrieve sidetags for user '{user}' not found in Koji")
+        return []
 
     koji.multicall = True
     for tag in sidetags:

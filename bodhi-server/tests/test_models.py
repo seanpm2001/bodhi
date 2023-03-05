@@ -18,7 +18,6 @@
 """Test suite for bodhi.server.models"""
 from datetime import datetime, timedelta
 from unittest import mock
-from urllib.error import URLError
 import hashlib
 import html
 import json
@@ -28,6 +27,7 @@ import uuid
 
 from fedora_messaging.api import Message
 from fedora_messaging.testing import mock_sends
+from mediawiki.exceptions import HTTPTimeoutError, MediaWikiAPIURLError
 from pyramid.testing import DummyRequest
 from sqlalchemy.exc import IntegrityError
 import cornice
@@ -375,7 +375,7 @@ class TestComment(BasePyTestCase):
         For history about why this is important, see
         https://github.com/fedora-infra/bodhi/issues/949.
         """
-        assert model.Comment.__table__.columns['text'].nullable == False
+        assert model.Comment.__table__.columns['text'].nullable is False
 
 
 class TestDeclEnum:
@@ -1009,20 +1009,6 @@ class TestReleaseFlatpak(ModelTest):
         assert model.Release._all_releases is None
 
 
-class MockWiki(object):
-    """ Mocked simplemediawiki.MediaWiki class. """
-    def __init__(self, response):
-        self.response = response
-        self.query = None
-
-    def __call__(self, *args, **kwargs):
-        return self
-
-    def call(self, query):
-        self.query = query
-        return self.response
-
-
 class TestPackageModel(BasePyTestCase):
     """Tests for the Package model."""
 
@@ -1639,40 +1625,29 @@ class TestBuild(ModelTest):
         return {'package': model.Package(name='TurboGears')}
 
     @mock.patch.dict(config, {'query_wiki_test_cases': True})
-    def test_wiki_test_cases(self):
+    @mock.patch('bodhi.server.models.MediaWiki')
+    def test_wiki_test_cases(self, MediaWiki):
         """Test querying the wiki for test cases"""
-        # Mock out mediawiki so we don't do network calls in our tests
-        response = {
-            'query': {
-                'categorymembers': [{
-                    'title': 'Fake test case',
-                }],
-            }
-        }
-
-        # Now, our actual test.
-        with mock.patch('bodhi.server.models.MediaWiki', MockWiki(response)):
-            pkg = model.RpmPackage(name='gnome-shell')
-            self.db.add(pkg)
-            build = model.RpmBuild(nvr='gnome-shell-1.1.1-1.fc32', package=pkg)
-            self.db.add(build)
-            build.update_test_cases(self.db)
-            assert build.testcases[0].name == 'Fake test case'
-            assert len(build.testcases) == 1
+        responses = [
+            (['Fake test case'], [])]
+        MediaWiki.return_value.categorymembers.side_effect = responses
+        pkg = model.RpmPackage(name='gnome-shell')
+        self.db.add(pkg)
+        build = model.RpmBuild(nvr='gnome-shell-1.1.1-1.fc32', package=pkg)
+        self.db.add(build)
+        build.update_test_cases(self.db)
+        assert model.TestCase.query.count() == 1
+        assert build.testcases[0].name == 'Fake test case'
+        assert len(build.testcases) == 1
 
     @mock.patch.dict(config, {'query_wiki_test_cases': True})
     @mock.patch('bodhi.server.models.MediaWiki')
     def test_wiki_test_cases_recursive(self, MediaWiki):
         """Test querying the wiki for test cases when recursion is necessary."""
         responses = [
-            {'query': {
-                'categorymembers': [
-                    {'title': 'Fake'},
-                    {'title': 'Category:Bodhi'},
-                    {'title': 'Uploading cat pictures'}]}},
-            {'query': {
-                'categorymembers': [
-                    {'title': 'Does Bodhi eat +1s'}]}}]
+            (['Fake', 'Uploading cat pictures'], ['Bodhi']),
+            (['Does Bodhi eat +1s'], [])]
+        MediaWiki.return_value.categorymembers.side_effect = responses
         MediaWiki.return_value.call.side_effect = responses
         pkg = model.RpmPackage(name='gnome-shell')
         self.db.add(pkg)
@@ -1691,10 +1666,7 @@ class TestBuild(ModelTest):
     def test_wiki_test_cases_removed(self, MediaWiki):
         """Test querying the wiki for test cases and remove test which aren't actual."""
         responses = [
-            {'query': {
-                'categorymembers': [
-                    {'title': 'Fake test case'},
-                    {'title': 'Does Bodhi eat +1s'}]}}]
+            (['Fake test case', 'Does Bodhi eat +1s'], [])]
 
         pkg = model.RpmPackage(name='gnome-shell')
         self.db.add(pkg)
@@ -1702,7 +1674,7 @@ class TestBuild(ModelTest):
         self.db.add(build)
 
         # Add both tests to build
-        MediaWiki.return_value.call.side_effect = responses
+        MediaWiki.return_value.categorymembers.side_effect = responses
         build.update_test_cases(self.db)
         assert model.TestCase.query.count() == 2
         assert len(build.testcases) == 2
@@ -1711,10 +1683,8 @@ class TestBuild(ModelTest):
 
         # Now remove one test
         responses = [
-            {'query': {
-                'categorymembers': [
-                    {'title': 'Fake test case'}]}}]
-        MediaWiki.return_value.call.side_effect = responses
+            (['Fake test case'], [])]
+        MediaWiki.return_value.categorymembers.side_effect = responses
         build.update_test_cases(self.db)
         assert model.TestCase.query.count() == 2
         assert len(build.testcases) == 1
@@ -1722,9 +1692,9 @@ class TestBuild(ModelTest):
 
     @mock.patch.dict(config, {'query_wiki_test_cases': True})
     @mock.patch('bodhi.server.models.MediaWiki')
-    def test_wiki_test_cases_exception(self, MediaWiki):
+    def test_wiki_connection_failed(self, MediaWiki):
         """Test querying the wiki for test cases when connection to Wiki failed"""
-        MediaWiki.return_value.call.side_effect = URLError("oh no!")
+        MediaWiki.side_effect = MediaWikiAPIURLError("https://bad-api-url")
 
         with pytest.raises(ExternalCallException) as exc_context:
             pkg = model.RpmPackage(name='gnome-shell')
@@ -1733,7 +1703,22 @@ class TestBuild(ModelTest):
             self.db.add(build)
             build.update_test_cases(self.db)
         assert len(build.testcases) == 0
-        assert str(exc_context.value) == 'Failed retrieving testcases from Wiki'
+        assert str(exc_context.value).startswith('Failed to connect to Fedora Wiki:')
+
+    @mock.patch.dict(config, {'query_wiki_test_cases': True})
+    @mock.patch('bodhi.server.models.MediaWiki')
+    def test_wiki_query_timeout(self, MediaWiki):
+        """Test querying the wiki for test cases when connection to Wiki failed"""
+        MediaWiki.return_value.categorymembers.side_effect = HTTPTimeoutError("oh no!")
+
+        with pytest.raises(ExternalCallException) as exc_context:
+            pkg = model.RpmPackage(name='gnome-shell')
+            self.db.add(pkg)
+            build = model.RpmBuild(nvr='gnome-shell-1.1.1-1.fc32', package=pkg)
+            self.db.add(build)
+            build.update_test_cases(self.db)
+        assert len(build.testcases) == 0
+        assert str(exc_context.value).startswith('Failed retrieving testcases from Wiki:')
 
 
 class TestRpmBuild(ModelTest):
@@ -3293,10 +3278,10 @@ class TestUpdate(ModelTest):
         assert [c[1][0] for c in close.mock_calls] == [1, 2]
         assert all(
             ['to the Fedora 11 stable repository' in c[2]['comment']
-                for c in close.mock_calls]) == True
+                for c in close.mock_calls]) is True
         assert all(
             [c[2]['versions']['TurboGears'] == 'TurboGears-1.0.8-3.fc11'
-                for c in close.mock_calls]) == True
+                for c in close.mock_calls]) is True
 
     @mock.patch('bodhi.server.models.bugs.bugtracker.close')
     @mock.patch('bodhi.server.models.bugs.bugtracker.comment')
@@ -3316,7 +3301,7 @@ class TestUpdate(ModelTest):
         assert [c[1][0] for c in comment.mock_calls] == [1, 2]
         assert all(
             ['pushed to the Fedora 11 stable repository' in c[1][1]
-                for c in comment.mock_calls]) == True
+                for c in comment.mock_calls]) is True
         # No bugs should have been closed
         assert close.call_count == 0
 
@@ -4992,6 +4977,61 @@ class TestUpdate(ModelTest):
         assert msg.body["artifact"]["id"].startswith("FEDORA-")
         assert msg.body["artifact"]["type"] == "koji-build-group"
         assert msg.packages == ['TurboGears']
+
+    @mock.patch('bodhi.server.models.Update.obsolete')
+    @mock.patch('bodhi.server.models.Update.comment')
+    def test_obsolete_older_updates(self, comment, obsolete):
+        """Assert notes from previous update are copied into the newer."""
+        old_update = self.db.query(model.Update).first()
+        assert old_update.builds[0].nvr == 'TurboGears-1.0.8-3.fc11'
+        assert old_update.notes == 'foobar'
+        new_update = self.get_update(name='TurboGears-1.0.9-1.fc11',
+                                     override_args={'notes': 'These notes are new.'})
+        new_update.obsolete_older_updates(self.db)
+        assert new_update.notes == "These notes are new.\n\n----\n\nfoobar"
+
+    @mock.patch('bodhi.server.models.Update.obsolete')
+    @mock.patch('bodhi.server.models.Update.comment')
+    def test_obsolete_older_updates_with_changelog(self, comment, obsolete):
+        """Assert old changelog is not copied into newer notes."""
+        old_update = self.db.query(model.Update).first()
+        assert old_update.builds[0].nvr == 'TurboGears-1.0.8-3.fc11'
+        changelog = ('* Sat Aug  3 2013 Fedora Releng <rel-eng@lists.fedoraproject.org> - 2\n'
+                     '- Added a free money feature.\n* Tue Jun 11 2013 Randy <bowlofeggs@fpo>'
+                     ' - 2.0.1-2\n- Make users ☺\n')
+        old_update.notes = f"""Automatic update for {old_update.builds[0].nvr}.
+
+##### **Changelog**
+
+```
+{changelog}
+```"""
+        changelog = ('* Sat Aug  3 2018 Fedora Releng <rel-eng@lists.fedoraproject.org> - 3\n'
+                     '- Just having fun.\n' + changelog)
+        new_update = self.get_update(name='TurboGears-1.0.9-1.fc11')
+        new_notes = new_update.notes = f"""Automatic update for {new_update.builds[0].nvr}.
+
+##### **Changelog**
+
+```
+{changelog}
+```"""
+        new_update.obsolete_older_updates(self.db)
+        assert new_update.notes == (
+            new_notes + f"\n\n----\n\nAutomatic update for {old_update.builds[0].nvr}.\n")
+
+    @mock.patch('bodhi.server.models.Update.obsolete')
+    @mock.patch('bodhi.server.models.Update.comment')
+    def test_obsolete_older_updates_with_notes_too_long(self, comment, obsolete):
+        """Assert notes from previous update are not copied into the newer
+        if the resultant notes are too long."""
+        old_update = self.db.query(model.Update).first()
+        assert old_update.builds[0].nvr == 'TurboGears-1.0.8-3.fc11'
+        old_update.notes = 'a' * (config.get('update_notes_maxlength') - 100)
+        new_update = self.get_update(name='TurboGears-1.0.9-1.fc11')
+        new_update.notes = 'b' * 101
+        new_update.obsolete_older_updates(self.db)
+        assert new_update.notes == 'b' * 101
 
 
 class TestUser(ModelTest):

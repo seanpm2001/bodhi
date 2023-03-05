@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "bodhi-client"
-version = "7.0.0"
+version = "7.1.0"
 description = "Bodhi client"
 authors = ["Fedora Infrastructure team"]
 maintainers = ["Fedora Infrastructure Team <infrastructure@lists.fedoraproject.org>"]
@@ -41,11 +41,12 @@ pytest-mock = ">=3.5.1"
 diff-cover = ">=4.2.1"
 
 [tool.poetry.dependencies]
-python = ">=3.8"
+python = ">=3.8, <4"
 click = ">=7.1.2"
 koji = ">=1.27.1"
 authlib = ">=0.15.4"
 munch = ">=2.5.0"
+requests = "^2.27"
 requests-kerberos = ">=0.12"
 
 [build-system]

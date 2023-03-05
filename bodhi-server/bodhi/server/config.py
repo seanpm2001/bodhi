@@ -605,6 +605,9 @@ class BodhiConfig(dict):
         'test_gating.url': {
             'value': '',
             'validator': str},
+        'update_notes_maxlength': {
+            'value': 10000,
+            'validator': int},
         'updateinfo_rights': {
             'value': 'Copyright (C) {} Red Hat, Inc. and others.'.format(datetime.now().year),
             'validator': str},
@@ -616,6 +619,9 @@ class BodhiConfig(dict):
             'validator': _validate_bool},
         'wiki_url': {
             'value': 'https://fedoraproject.org/w/api.php',
+            'validator': str},
+        'wiki_user_agent': {
+            'value': 'FedoraLinuxBodhi-User-Agent',
             'validator': str},
     }
 

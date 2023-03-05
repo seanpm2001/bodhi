@@ -55,8 +55,15 @@ add-ignore = "D413"
 addopts = "--cov-config .coveragerc --cov=bodhi --cov-report term-missing --cov-report xml --cov-report html"
 testpaths = ["tests"]
 
+[tool.ruff]
+extend-exclude = [
+    'bodhi-ci'
+]
+line-length = 100
+
 [tool.towncrier]
 package = "bodhi"
+package_dir = "./bodhi-server"
 filename = "docs/user/release_notes.rst"
 directory = "news/"
 title_format = "v{version}"
