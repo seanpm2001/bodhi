@@ -18,6 +18,7 @@
 
 from collections import defaultdict
 from datetime import date, datetime, timedelta
+from functools import lru_cache
 from textwrap import wrap
 import hashlib
 import json
@@ -953,6 +954,7 @@ class Release(Base):
         return ' '.join(self.long_name.split()[:-1])
 
     @classmethod
+    @lru_cache(maxsize=1)
     def all_releases(cls):
         """
         Return a mapping of release states to a list of dictionaries describing the releases.
@@ -961,46 +963,33 @@ class Release(Base):
             defaultdict: Mapping strings of :class:`ReleaseState` names to lists of dictionaries
             that describe the releases in those states.
         """
-        if cls._all_releases:
-            return cls._all_releases
         releases = defaultdict(list)
         for release in cls.query.order_by(cls.name.desc()).all():
             releases[release.state.value].append(release.__json__())
-        cls._all_releases = releases
-        return cls._all_releases
-    _all_releases = None
+        return releases
 
     @classmethod
-    def clear_all_releases_cache(cls):
-        """Clear up Release cache."""
-        cls._all_releases = None
-
-    @classmethod
-    def get_tags(cls, session):
+    @lru_cache(maxsize=1)
+    def get_tags(cls):
         """
         Return a 2-tuple mapping tags to releases.
 
-        Args:
-            session (sqlalchemy.orm.session.Session): A database session.
         Returns:
             tuple: A 2-tuple. The first element maps the keys 'candidate', 'testing', 'stable',
             'override', 'pending_testing', and 'pending_stable' each to a list of tags for various
             releases that correspond to those tag semantics. The second element maps each koji tag
             to the release's name that uses it.
         """
-        if cls._tag_cache:
-            return cls._tag_cache
         data = {'candidate': [], 'testing': [], 'stable': [], 'override': [],
                 'pending_testing': [], 'pending_stable': []}
         tags = {}  # tag -> release lookup
-        for release in session.query(cls).all():
+        for release in cls.query.filter(cls.state.notin_([ReleaseState.archived,
+                                                          ReleaseState.disabled])).all():
             for key in data:
-                tag = getattr(release, '%s_tag' % key)
+                tag = getattr(release, f'{key}_tag')
                 data[key].append(tag)
                 tags[tag] = release.name
-        cls._tag_cache = (data, tags)
-        return cls._tag_cache
-    _tag_cache = None
+        return (data, tags)
 
     @classmethod
     def from_tags(cls, tags, session):
@@ -1014,7 +1003,7 @@ class Release(Base):
             Release or None: The first release found that matches the first tag. If no release is
                 found, ``None`` is returned.
         """
-        tag_types, tag_rels = cls.get_tags(session)
+        tag_types, tag_rels = cls.get_tags()
         for tag in tags:
             if tag not in tag_rels:
                 continue
@@ -2373,8 +2362,13 @@ class Update(Base):
                 gotsat = True
             if unsatisfied:
                 gotunsat = True
-                if not recent or not all(req.get('type', '') == 'test-result-missing'
-                                         for req in unsatisfied):
+                if not all(req.get('type', '') == 'test-result-missing' for req in unsatisfied):
+                    # some unsats must be failures
+                    return TestGatingStatus.failed
+                if not recent and not all(req.get('result_id') for req in unsatisfied):
+                    # all unsats are missing, but it's more than two
+                    # hours since the update was edited and we don't
+                    # have QUEUED or RUNNING results for all of them
                     return TestGatingStatus.failed
 
         if not gotsat and not gotunsat:
@@ -2702,8 +2696,15 @@ class Update(Base):
 
         up.date_modified = datetime.utcnow()
 
-        notifications.publish(update_schemas.UpdateEditV1.from_dict(
-            message={'update': up, 'agent': request.user.name, 'new_bugs': new_bugs}))
+        notifications.publish(update_schemas.UpdateEditV2.from_dict(
+            message={
+                'update': up,
+                'agent': request.user.name,
+                'new_bugs': new_bugs,
+                'new_builds': new_builds,
+                'removed_builds': removed_builds
+            }
+        ))
 
         # If editing a Pending update, all of whose builds are signed, for a release
         # which isn't composed by Bodhi (i.e. Rawhide), move it directly to Testing.
@@ -3704,7 +3705,7 @@ class Update(Base):
         """
         log.info("Untagging %s", self.alias)
         koji = buildsys.get_session()
-        tag_types, tag_rels = Release.get_tags(db)
+        tag_types, tag_rels = Release.get_tags()
         koji.multicall = True
         for build in self.builds:
             for tag in build.get_tags():
